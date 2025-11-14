@@ -1,5 +1,4 @@
 const express = require("express");
-const router = express.Router();
 const { initiatePayment, verifyPayment } = require("../controllers/paymentController");
 
 const router = express.Router();
