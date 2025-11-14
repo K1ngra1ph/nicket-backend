@@ -1,7 +1,6 @@
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const app = require("./app");
-const paymentRoutes = require("./routes/paymentRoutes");
 
 dotenv.config();
 connectDB();
