@@ -6,7 +6,8 @@ const paymentSchema = new mongoose.Schema(
     amountPaid: Number,
     paymentStatus: String,
     customerEmail: String,
-    customerName: String,
+    customerFullName: String,
+    customerPhoneNumber: String,
     transactionReference: String,
   },
   { timestamps: true }
