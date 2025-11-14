@@ -1,7 +1,7 @@
 const axios = require("axios");
 const User = require("../models/User");
 const Payment = require("../models/Payment");
-const { getMonnifyToken } = reqiure("../services/monnifyService");
+const { getMonnifyToken } = require("../services/monnifyService");
 
 const BASE_URL =
   process.env.MONNIFY_MODE === "LIVE"
