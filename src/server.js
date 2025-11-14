@@ -2,7 +2,6 @@ const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const app = require("./app");
-const app = express();
 const paymentRoutes = require("./routes/paymentRoutes");
 
 app.use(express.json());
