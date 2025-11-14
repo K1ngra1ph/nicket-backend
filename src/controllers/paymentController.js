@@ -19,7 +19,7 @@ exports.initiatePayment = async (req, res) => {
     const paymentReference = `NICKET-${Date.now()}`;
 
     const response = await axios.post(
-      `${BASE_URL}/api/v1/merchant/transactions/initiate`,
+      `${BASE_URL}/api/v1/merchant/transactions/init-transaction`,
       {
         amount: Number(amount),
         customerFullName: name,
