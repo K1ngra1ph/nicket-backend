@@ -6,7 +6,7 @@ const BASE_URL =
     : "https://sandbox.monnify.com";
 
 exports.getMonnifyToken = async () => {
-  const credentials = `${process.env.MONNIFY_API_KEY}:${process.env.MONNIFY_API_SECRET}`;
+  const credentials = `${process.env.MONNIFY_API_KEY}:${process.env.MONNIFY_SECRET_KEY}`;
   const encoded = Buffer.from(credentials).toString("base64");
 
   const response = await axios.post(
