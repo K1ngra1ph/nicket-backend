@@ -43,6 +43,7 @@ exports.initiatePayment = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Payment initialized successfully",
+      contractCode: process.env.MONNIFY_CONTRACT_CODE,
       data: response.data.responseBody,
     });
 
