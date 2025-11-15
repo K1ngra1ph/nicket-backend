@@ -2,13 +2,16 @@ const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema(
   {
-    paymentReference: { type: String, unique: true },
-    amountPaid: Number,
-    paymentStatus: String,
-    customerEmail: String,
-    customerFullName: String,
-    customerPhoneNumber: String,
-    transactionReference: String,
+    paymentReference: { type: String, unique: true, required: true },
+    amount: Number,
+    eventValue: String,
+
+    name: String,
+    email: String,
+    phone: String,
+
+    status: { type: String, default: "pending" },
+    transactionReference: String
   },
   { timestamps: true }
 );
