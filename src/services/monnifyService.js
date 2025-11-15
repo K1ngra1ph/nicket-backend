@@ -6,13 +6,19 @@ const BASE_URL =
     : "https://sandbox.monnify.com";
 
 exports.getMonnifyToken = async () => {
-  const credentials = `${process.env.MONNIFY_API_KEY}:${process.env.MONNIFY_SECRET_KEY}`;
-  const encoded = Buffer.from(credentials).toString("base64");
+  try {
+    const credentials = `${process.env.MONNIFY_API_KEY}:${process.env.MONNIFY_SECRET_KEY}`;
+    const encoded = Buffer.from(credentials).toString("base64");
 
-  const response = await axios.post(
-    `${BASE_URL}/api/v1/auth/login`,
-    {},
-    { headers: { Authorization: `Basic ${encoded}` } }
-  );
-  return response.data.responseBody.accessToken;
+    const response = await axios.post(
+      `${BASE_URL}/api/v1/auth/login`,
+      {},
+      { headers: { Authorization: `Basic ${encoded}` } }
+    );
+
+    return response.data.responseBody.accessToken;
+  } catch (err) {
+    console.error("❌ Monnify token error:", err.response?.data || err.message);
+    return null;
+  }
 };
