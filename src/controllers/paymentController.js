@@ -42,11 +42,12 @@ exports.initiatePayment = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        paymentReference,
-        contractCode: process.env.MONNIFY_CONTRACT_CODE,
-        ccheckoutUrl: response.data.responseBody.checkoutUrl
-      }
+      apiKey: process.env.MONNIFY_API_KEY,
+      contractCode: process.env.MONNIFY_CONTRACT_CODE,
+      paymentReference,
+      amount: Number(amount),
+      checkoutUrl,
+      data: response.data.responseBody,
     });
 
   } catch (error) {
