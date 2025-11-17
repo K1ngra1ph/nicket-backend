@@ -111,7 +111,7 @@ exports.verifyPayment = async (req, res) => {
     const token = await getMonnifyToken();
 
     const response = await axios.get(
-      `${BASE_URL}/api/v1/merchant/transactions/${paymentReference}`,
+      `${BASE_URL}/api/v2/merchant/transactions/${paymentReference}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
