@@ -88,7 +88,6 @@ exports.initiatePayment = async (req, res) => {
       email,
       phone,
       status: "pending",
-      userId: userId || null,
     });
 
     return res.json({
@@ -106,7 +105,6 @@ exports.initiatePayment = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
   try {
-    // IMPORTANT: now using transactionReference
     const transactionReference =
       (req.body.transactionReference ||
         req.query.transactionReference ||
@@ -121,7 +119,6 @@ exports.verifyPayment = async (req, res) => {
 
     const token = await getMonnifyToken();
 
-    // CHECK TRANSACTION WITH MONNIFY
     const response = await axios.get(
       `${BASE_URL}/api/v1/merchant/transactions/${transactionReference}`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -137,9 +134,8 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // FIND PAYMENT BY paymentReference
     const payment = await Payment.findOne({
-      paymentReference: info.paymentReference,
+      paymentReference: info.paymentReference
     });
 
     if (payment) {
