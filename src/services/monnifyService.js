@@ -13,12 +13,18 @@ exports.getMonnifyToken = async () => {
     const response = await axios.post(
       `${BASE_URL}/api/v1/auth/login`,
       {},
-      { headers: { Authorization: `Basic ${encoded}` } }
+      {
+        headers: { Authorization: `Basic ${encoded}` },
+        timeout: 10000,
+      }
     );
 
-    return response.data.responseBody.accessToken;
+    const token = response.data.responseBody.accessToken;
+    if (!token) throw new Error("No token received from Monnify");
+
+    return token;
   } catch (err) {
     console.error("❌ Monnify token error:", err.response?.data || err.message);
-    return null;
+    throw new Error("Failed to get Monnify token");
   }
 };
