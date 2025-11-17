@@ -106,19 +106,24 @@ exports.initiatePayment = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
   try {
-    const paymentReference = (req.body.paymentReference || req.query.reference || "").trim();
+    // IMPORTANT: now using transactionReference
+    const transactionReference =
+      (req.body.transactionReference ||
+        req.query.transactionReference ||
+        "").trim();
 
-    if (!paymentReference) {
+    if (!transactionReference) {
       return res.status(400).json({
         success: false,
-        error: "Missing or invalid payment reference",
+        error: "Missing or invalid transaction reference",
       });
     }
 
     const token = await getMonnifyToken();
 
+    // CHECK TRANSACTION WITH MONNIFY
     const response = await axios.get(
-      `${BASE_URL}/api/v1/merchant/transactions/${paymentReference}`,
+      `${BASE_URL}/api/v1/merchant/transactions/${transactionReference}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -132,33 +137,44 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    const payment = await Payment.findOne({ paymentReference });
+    // FIND PAYMENT BY paymentReference
+    const payment = await Payment.findOne({
+      paymentReference: info.paymentReference,
+    });
 
     if (payment) {
       payment.amountPaid = info.amountPaid || 0;
       payment.status = info.paymentStatus || "unknown";
-      payment.transactionReference = info.transactionReference || "";
+      payment.transactionReference = info.transactionReference;
       await payment.save();
     } else {
       await Payment.create({
-        paymentReference,
+        paymentReference: info.paymentReference,
         amountPaid: info.amountPaid || 0,
         status: info.paymentStatus || "unknown",
-        transactionReference: info.transactionReference || "",
+        transactionReference: info.transactionReference,
       });
     }
 
-    console.log(`Payment ${paymentReference} verification:`, info.paymentStatus);
+    console.log(
+      `Payment ${info.paymentReference} verification:`,
+      info.paymentStatus
+    );
 
     return res.json({
       success: true,
-      paymentReference: info.paymentReference,
-      amountPaid: info.amountPaid,
-      status: info.paymentStatus,
-      transactionReference: info.transactionReference,
+      data: {
+        paymentReference: info.paymentReference,
+        amountPaid: info.amountPaid,
+        status: info.paymentStatus,
+        transactionReference: info.transactionReference,
+      },
     });
   } catch (error) {
-    console.error("Verify Payment Error:", error.response?.data || error.message);
+    console.error(
+      "Verify Payment Error:",
+      error.response?.data || error.message
+    );
     return res.status(500).json({
       success: false,
       error: error.response?.data || error.message,
