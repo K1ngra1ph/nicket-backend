@@ -1,6 +1,5 @@
 const cors = require("cors");
 const express = require("express");
-
 const userRoutes = require("./routes/userRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const merchantRoutes = require("./routes/merchantRoutes");
@@ -10,7 +9,9 @@ const app = express();
 app.use(cors({ origin: [
   "https://nicket-lilac.vercel.app", 
   "https://nicket-lilac.vercel.app/game"
-], credentials: true }));
+], credentials: true, methods: ["GET", "POST", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization"] }));
+
+app.options("*", cors());
 
 app.use(express.json());
 
