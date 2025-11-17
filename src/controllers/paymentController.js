@@ -1,25 +1,40 @@
 const axios = require("axios");
+const User = require("../models/User");
 const Payment = require("../models/Payment");
-const { getMonnifyToken } = require("../services/monnifyService");
 
 const BASE_URL =
   process.env.MONNIFY_MODE === "LIVE"
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
-// 🚀 INITIATE PAYMENT (CLEAN + WORKING)
+async function getMonnifyToken() {
+  try {
+    const auth = Buffer.from(
+      `${process.env.MONNIFY_API_KEY}:${process.env.MONNIFY_SECRET_KEY}`
+    ).toString("base64");
+
+    const res = await axios.post(
+      `${BASE_URL}/api/v1/auth/login`,
+      {},
+      { headers: { Authorization: `Basic ${auth}` } }
+    );
+
+    return res.data.responseBody.accessToken;
+  } catch (err) {
+    console.error("Token Error:", err.response?.data || err.message);
+    throw new Error("Failed to get Monnify token");
+  }
+}
+
 exports.initiatePayment = async (req, res) => {
   try {
-    const { name, email, phone, amount, eventValue } = req.body;
+    const { name, email, phone, amount, eventValue, userId } = req.body;
 
-    if (!name || !email || !phone || !amount || !eventValue) {
-      return res.status(400).json({ success: false, error: "Missing fields" });
+    if (!name || !email || !phone || !amount || (!eventValue && !userId)) {
+      return res.status(400).json({ success: false, error: "Missing required fields" });
     }
 
     const token = await getMonnifyToken();
-    if (!token) {
-      return res.status(500).json({ success: false, error: "Monnify token error" });
-    }
 
     const paymentReference = `NICKET-${Date.now()}`;
 
@@ -29,10 +44,10 @@ exports.initiatePayment = async (req, res) => {
       customerEmail: email,
       customerPhoneNumber: phone,
       paymentReference,
-      paymentDescription: `Nicket Payment - ${eventValue}`,
+      paymentDescription: eventValue ? `Nicket Payment - ${eventValue}` : "Wallet Funding",
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl: "https://nicket-lilac.vercel.app/verify.html"
+      redirectUrl: process.env.MONNIFY_REDIRECT_URL || "https://nicket-lilac.vercel.app/verify.html",
     };
 
     const monnifyResponse = await axios.post(
@@ -41,14 +56,14 @@ exports.initiatePayment = async (req, res) => {
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
       }
     );
 
     const responseBody = monnifyResponse.data.responseBody;
 
-    // ✔ FIXED — checkoutUrl properly extracted
     const checkoutUrl =
       responseBody?.checkoutUrl ||
       responseBody?.checkout_url ||
@@ -58,59 +73,42 @@ exports.initiatePayment = async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "Monnify did not return checkoutUrl",
-        raw: responseBody
+        raw: responseBody,
       });
     }
 
-    // Save payment
     await Payment.create({
       paymentReference,
       amount,
-      eventValue,
+      eventValue: eventValue || "Wallet Funding",
       name,
       email,
       phone,
-      status: "pending"
+      status: "pending",
+      userId: userId || null,
     });
 
     return res.json({
       success: true,
-      data: {
-        checkoutUrl,
-        paymentReference
-      }
+      data: { checkoutUrl, paymentReference },
     });
-
   } catch (error) {
     console.error("Payment init error:", error.response?.data || error.message);
-    
     return res.status(500).json({
       success: false,
-      error: error.response?.data || error.message
+      error: error.response?.data || error.message,
     });
   }
 };
 
-
-// 🚀 VERIFY PAYMENT
 exports.verifyPayment = async (req, res) => {
   try {
-    const { paymentReference } = req.body;
-
+    const paymentReference = req.body.paymentReference || req.query.reference;
     if (!paymentReference) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing payment reference"
-      });
+      return res.status(400).json({ success: false, error: "Missing payment reference" });
     }
 
     const token = await getMonnifyToken();
-    if (!token) {
-      return res.status(500).json({
-        success: false,
-        error: "Monnify token error"
-      });
-    }
 
     const response = await axios.get(
       `${BASE_URL}/api/v1/merchant/transactions/${paymentReference}`,
@@ -119,27 +117,26 @@ exports.verifyPayment = async (req, res) => {
 
     const info = response.data.responseBody;
 
-    // Update DB status
     await Payment.findOneAndUpdate(
       { paymentReference },
       {
+        amountPaid: info.amountPaid || 0,
         status: info.paymentStatus || "unknown",
-        transactionReference: info.transactionReference
-      }
+        transactionReference: info.transactionReference || "",
+      },
+      { upsert: true, new: true }
     );
 
     return res.json({
       success: true,
       message: "Payment verification successful",
-      data: info
+      data: info,
     });
-
   } catch (error) {
-    console.error("Verify error:", error.response?.data || error.message);
-    
+    console.error("Verify Payment Error:", error.response?.data || error.message);
     return res.status(500).json({
       success: false,
-      error: error.response?.data || error.message
+      error: error.response?.data || error.message,
     });
   }
 };
