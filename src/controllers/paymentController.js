@@ -31,11 +31,12 @@ exports.initiatePayment = async (req, res) => {
     const { name, email, phone, amount, eventValue, userId } = req.body;
 
     if (!name || !email || !phone || !amount || (!eventValue && !userId)) {
-      return res.status(400).json({ success: false, error: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing required fields" });
     }
 
     const token = await getMonnifyToken();
-
     const paymentReference = `NICKET-${Date.now()}`;
 
     const payload = {
@@ -44,10 +45,14 @@ exports.initiatePayment = async (req, res) => {
       customerEmail: email,
       customerPhoneNumber: phone,
       paymentReference,
-      paymentDescription: eventValue ? `Nicket Payment - ${eventValue}` : "Wallet Funding",
+      paymentDescription: eventValue
+        ? `Nicket Payment - ${eventValue}`
+        : "Wallet Funding",
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl: process.env.MONNIFY_REDIRECT_URL || "https://nicket-lilac.vercel.app/verify.html",
+      redirectUrl:
+        process.env.MONNIFY_REDIRECT_URL ||
+        "https://nicket-lilac.vercel.app/verify.html",
     };
 
     const monnifyResponse = await axios.post(
@@ -65,9 +70,7 @@ exports.initiatePayment = async (req, res) => {
     const responseBody = monnifyResponse.data.responseBody;
 
     const checkoutUrl =
-      responseBody?.checkoutUrl ||
-      responseBody?.checkout_url ||
-      null;
+      responseBody?.checkoutUrl || responseBody?.checkout_url || null;
 
     if (!checkoutUrl) {
       return res.status(500).json({
@@ -103,34 +106,56 @@ exports.initiatePayment = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
   try {
-    const paymentReference = req.body.paymentReference || req.query.reference;
+    const paymentReference = (req.body.paymentReference || req.query.reference || "").trim();
+
     if (!paymentReference) {
-      return res.status(400).json({ success: false, error: "Missing payment reference" });
+      return res.status(400).json({
+        success: false,
+        error: "Missing or invalid payment reference",
+      });
     }
 
     const token = await getMonnifyToken();
 
     const response = await axios.get(
-      `${BASE_URL}/api/v2/merchant/transactions/${paymentReference}`,
+      `${BASE_URL}/api/v1/merchant/transactions/${paymentReference}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
     const info = response.data.responseBody;
 
-    await Payment.findOneAndUpdate(
-      { paymentReference },
-      {
+    if (!info || !info.paymentReference) {
+      return res.status(500).json({
+        success: false,
+        error: "Monnify returned invalid transaction info",
+        raw: response.data,
+      });
+    }
+
+    const payment = await Payment.findOne({ paymentReference });
+
+    if (payment) {
+      payment.amountPaid = info.amountPaid || 0;
+      payment.status = info.paymentStatus || "unknown";
+      payment.transactionReference = info.transactionReference || "";
+      await payment.save();
+    } else {
+      await Payment.create({
+        paymentReference,
         amountPaid: info.amountPaid || 0,
         status: info.paymentStatus || "unknown",
         transactionReference: info.transactionReference || "",
-      },
-      { upsert: true, new: true }
-    );
+      });
+    }
+
+    console.log(`Payment ${paymentReference} verification:`, info.paymentStatus);
 
     return res.json({
       success: true,
-      message: "Payment verification successful",
-      data: info,
+      paymentReference: info.paymentReference,
+      amountPaid: info.amountPaid,
+      status: info.paymentStatus,
+      transactionReference: info.transactionReference,
     });
   } catch (error) {
     console.error("Verify Payment Error:", error.response?.data || error.message);
