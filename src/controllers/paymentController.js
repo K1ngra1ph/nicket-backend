@@ -50,9 +50,7 @@ exports.initiatePayment = async (req, res) => {
         : "Wallet Funding",
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl:
-        process.env.MONNIFY_REDIRECT_URL ||
-        "https://nicket-lilac.vercel.app/verify.html",
+      redirectUrl: "https://nicket-lilac.vercel.app/verify.html",
     };
 
     const monnifyResponse = await axios.post(
@@ -72,14 +70,6 @@ exports.initiatePayment = async (req, res) => {
     const checkoutUrl =
       responseBody?.checkoutUrl || responseBody?.checkout_url || null;
 
-    if (!checkoutUrl) {
-      return res.status(500).json({
-        success: false,
-        error: "Monnify did not return checkoutUrl",
-        raw: responseBody,
-      });
-    }
-
     await Payment.create({
       paymentReference,
       amount,
@@ -92,7 +82,7 @@ exports.initiatePayment = async (req, res) => {
 
     return res.json({
       success: true,
-      data: { checkoutUrl, paymentReference },
+      data: { checkoutUrl, paymentReference, apiKey: process.env.MONNIFY_API_KEY, contractCode: process.env.MONNIFY_CONTRACT_CODE },
     });
   } catch (error) {
     console.error("Payment init error:", error.response?.data || error.message);
