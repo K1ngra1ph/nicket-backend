@@ -6,9 +6,6 @@ const BASE_URL =
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
-/**
- * Fetch Monnify API token
- */
 async function getMonnifyToken() {
   try {
     const auth = Buffer.from(
@@ -28,17 +25,11 @@ async function getMonnifyToken() {
   }
 }
 
-/**
- * Initiate a payment
- */
 exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue } = req.body;
-
     if (!name || !email || !phone || !amount) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Missing required fields" });
+      return res.status(400).json({ success: false, error: "Missing required fields" });
     }
 
     const token = await getMonnifyToken();
@@ -55,27 +46,20 @@ exports.initiatePayment = async (req, res) => {
         : "Wallet Funding",
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl: "https://nicket-lilac.vercel.app/verify",
-      disallowRedirect: false,
+      redirectUrl: "https://nicket-lilac.vercel.app/game",
     };
 
     const monnifyResponse = await axios.post(
       `${BASE_URL}/api/v1/merchant/transactions/init-transaction`,
       payload,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         timeout: 15000,
       }
     );
 
     const responseBody = monnifyResponse.data.responseBody;
-    const checkoutUrl =
-      responseBody?.checkoutUrl || responseBody?.checkout_url || null;
 
-    // Save pending payment to DB
     await Payment.create({
       paymentReference,
       amount,
@@ -89,17 +73,14 @@ exports.initiatePayment = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        checkoutUrl,
-        paymentReference,
+        checkoutUrl: responseBody?.checkoutUrl || responseBody?.checkout_url,
         apiKey: process.env.MONNIFY_API_KEY,
+        paymentReference,
         contractCode: process.env.MONNIFY_CONTRACT_CODE,
       },
     });
   } catch (error) {
-    console.error(
-      "Payment initiation error:",
-      error.response?.data || error.message
-    );
+    console.error("Payment initiation error:", error.response?.data || error.message);
     return res.status(500).json({
       success: false,
       error: error.response?.data || error.message,
@@ -107,24 +88,12 @@ exports.initiatePayment = async (req, res) => {
   }
 };
 
-/**
- * Verify payment after redirect
- */
 exports.verifyPayment = async (req, res) => {
   try {
-    console.log("Incoming verify-payment body:", req.body);
-    console.log("Incoming query params:", req.query);
-
-    const transactionReference =
-      (req.body.transactionReference || req.query.transactionReference || "").trim();
-
-    console.log("Extracted transactionReference:", transactionReference);
+    const transactionReference = (req.body.transactionReference || req.query.transactionReference || "").trim();
 
     if (!transactionReference) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing or invalid transaction reference",
-      });
+      return res.status(400).json({ success: false, error: "Missing or invalid transaction reference" });
     }
 
     const token = await getMonnifyToken();
@@ -137,14 +106,9 @@ exports.verifyPayment = async (req, res) => {
     const info = monnifyRes.data.responseBody;
 
     if (!info || !info.paymentReference) {
-      console.error("Monnify returned invalid transaction info:", monnifyRes.data);
-      return res.status(500).json({
-        success: false,
-        error: "Monnify returned invalid transaction info",
-      });
+      return res.status(500).json({ success: false, error: "Monnify returned invalid transaction info" });
     }
 
-    // Update or create payment record
     let payment = await Payment.findOne({ paymentReference: info.paymentReference });
 
     if (payment) {
@@ -161,8 +125,6 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    console.log(`Payment ${info.paymentReference} verified with status:`, info.paymentStatus);
-
     return res.json({
       success: true,
       data: {
@@ -173,13 +135,7 @@ exports.verifyPayment = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "Payment verification error:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message,
-    });
+    console.error("Payment verification error:", error.response?.data || error.message);
+    return res.status(500).json({ success: false, error: error.response?.data || error.message });
   }
 };
