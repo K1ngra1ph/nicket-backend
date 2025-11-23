@@ -6,6 +6,7 @@ const BASE_URL =
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
+// Get Monnify Auth Token
 async function getMonnifyToken() {
   try {
     const auth = Buffer.from(
@@ -25,9 +26,11 @@ async function getMonnifyToken() {
   }
 }
 
+// Initiate Payment
 exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue } = req.body;
+
     if (!name || !email || !phone || !amount) {
       return res.status(400).json({ success: false, error: "Missing required fields" });
     }
@@ -35,18 +38,21 @@ exports.initiatePayment = async (req, res) => {
     const token = await getMonnifyToken();
     const paymentReference = `NICKET-${Date.now()}`;
 
+    // Payload exactly as Monnify expects
     const payload = {
-      amount: Number(amount),
-      customerName: name,
+      amount: Math.floor(Number(amount)), // must be integer
+      currency: "NGN",
+      paymentReference,
+      customerFullName: name,
       customerEmail: email,
       customerPhoneNumber: phone,
-      paymentReference,
+      contractCode: process.env.MONNIFY_CONTRACT_CODE,
       paymentDescription: eventValue
         ? `Nicket Payment - ${eventValue}`
         : "Wallet Funding",
-      currencyCode: "NGN",
-      contractCode: process.env.MONNIFY_CONTRACT_CODE,
       redirectUrl: "https://nicket-lilac.vercel.app/game",
+      // optional metadata for SDK
+      metaData: { event: eventValue || "Wallet Funding" },
     };
 
     const monnifyResponse = await axios.post(
@@ -60,6 +66,7 @@ exports.initiatePayment = async (req, res) => {
 
     const responseBody = monnifyResponse.data.responseBody;
 
+    // Save to DB
     await Payment.create({
       paymentReference,
       amount,
@@ -77,6 +84,7 @@ exports.initiatePayment = async (req, res) => {
         apiKey: process.env.MONNIFY_API_KEY,
         paymentReference,
         contractCode: process.env.MONNIFY_CONTRACT_CODE,
+        isTestMode: process.env.MONNIFY_MODE !== "LIVE",
       },
     });
   } catch (error) {
@@ -88,6 +96,7 @@ exports.initiatePayment = async (req, res) => {
   }
 };
 
+// Verify Payment
 exports.verifyPayment = async (req, res) => {
   try {
     const transactionReference = (req.body.transactionReference || req.query.transactionReference || "").trim();
