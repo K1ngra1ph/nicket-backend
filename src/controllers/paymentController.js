@@ -55,7 +55,8 @@ exports.initiatePayment = async (req, res) => {
         : "Wallet Funding",
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl: "https://nicket-lilac.vercel.app/verify", // must match frontend
+      redirectUrl: "https://nicket-lilac.vercel.app/verify",
+      disallowRedirect: false,
     };
 
     const monnifyResponse = await axios.post(
