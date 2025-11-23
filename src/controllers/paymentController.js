@@ -51,8 +51,14 @@ exports.initiatePayment = async (req, res) => {
         ? `Nicket Payment - ${eventValue}`
         : "Wallet Funding",
       redirectUrl: "https://nicket-lilac.vercel.app/game",
-      // optional metadata for SDK
-      metaData: { event: eventValue || "Wallet Funding" },
+      metaData: {
+        event: eventValue || "Wallet Funding",
+        playerName: name,
+        playerEmail: email,
+        selectedNumbers: Array.isArray(req.body.selectedNumbers)
+         ? req.body.selectedNumbers.json(",")
+         : "",
+      },
     };
 
     const monnifyResponse = await axios.post(
