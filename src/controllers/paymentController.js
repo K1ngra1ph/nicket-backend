@@ -30,10 +30,10 @@ exports.initiatePayment = async (req, res) => {
 
     // Prepare payment payload
     const paymentReference = `NICKET-${Date.now()}`;
-    const amountInKobo = Number(amount) * 100;
+    const amountInNaira = Number(amount);
 
     const payload = {
-      amount: amountInKobo,
+      amount: amountInNaira,
       customerName: name,
       customerEmail: email,
       customerPhone: phone,
