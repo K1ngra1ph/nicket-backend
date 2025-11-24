@@ -47,13 +47,13 @@ exports.initiatePayment = async (req, res) => {
         event: eventValue,
         playerName: name,
         playerEmail: email,
-        selectedNumbers: selectedNumbers.join(",") // Must be a string
+        selectedNumbers: selectedNumbers.join(",")
       }
     };
 
     // Call Monnify API
     const monnifyResponse = await axios.post(
-      "https://api.monnify.com/api/v1/merchant/transactions/init-transaction",
+      "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction",
       payload,
       {
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
