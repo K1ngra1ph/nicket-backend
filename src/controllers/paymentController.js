@@ -6,9 +6,13 @@ const BASE_URL =
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
-// Get Monnify Auth Token
+// ----------------------------------------------------
+// GET MONNIFY AUTH TOKEN
+// ----------------------------------------------------
 async function getMonnifyToken() {
   try {
+    console.log("[DEBUG] Requesting Monnify Token...");
+
     const auth = Buffer.from(
       `${process.env.MONNIFY_API_KEY}:${process.env.MONNIFY_SECRET_KEY}`
     ).toString("base64");
@@ -19,28 +23,34 @@ async function getMonnifyToken() {
       { headers: { Authorization: `Basic ${auth}` } }
     );
 
+    console.log("[DEBUG] Token response received:", res.data);
+
     return res.data.responseBody.accessToken;
   } catch (err) {
-    console.error("Token Error:", err.response?.data || err.message);
+    console.error("[ERROR] Token Error:", err.response?.data || err.message);
     throw new Error("Failed to get Monnify token");
   }
 }
 
-// Initiate Payment
+// ----------------------------------------------------
+// INITIATE PAYMENT
+// ----------------------------------------------------
 exports.initiatePayment = async (req, res) => {
   try {
-    const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
+    console.log("[DEBUG] Initiate Payment Request Body:", req.body);
+
+    const { name, email, phone, amount, eventValue } = req.body;
 
     if (!name || !email || !phone || !amount) {
+      console.warn("[DEBUG] Missing required fields:", req.body);
       return res.status(400).json({ success: false, error: "Missing required fields" });
     }
 
     const token = await getMonnifyToken();
     const paymentReference = `NICKET-${Date.now()}`;
 
-    // Payload exactly as Monnify expects
     const payload = {
-      amount: Math.floor(Number(amount)), // must be integer
+      amount: Math.floor(Number(amount)),
       currency: "NGN",
       paymentReference,
       customerFullName: name,
@@ -50,16 +60,18 @@ exports.initiatePayment = async (req, res) => {
       paymentDescription: eventValue
         ? `Nicket Payment - ${eventValue}`
         : "Wallet Funding",
-      redirectUrl: "https://nicket-lilac.vercel.app/game",
+      redirectUrl: "https://nicket-lilac.vercel.app/game.html",
       metaData: {
         event: eventValue || "Wallet Funding",
         playerName: name,
         playerEmail: email,
         selectedNumbers: Array.isArray(req.body.selectedNumbers)
-         ? req.body.selectedNumbers.join(",")
-         : "",
+          ? req.body.selectedNumbers.join(",")
+          : "",
       },
     };
+
+    console.log("[DEBUG] Monnify Init Payload:", payload);
 
     const monnifyResponse = await axios.post(
       `${BASE_URL}/api/v1/merchant/transactions/init-transaction`,
@@ -70,9 +82,10 @@ exports.initiatePayment = async (req, res) => {
       }
     );
 
+    console.log("[DEBUG] Monnify Init Response:", monnifyResponse.data);
+
     const responseBody = monnifyResponse.data.responseBody;
 
-    // Save to DB
     await Payment.create({
       paymentReference,
       amount,
@@ -82,6 +95,8 @@ exports.initiatePayment = async (req, res) => {
       phone,
       status: "pending",
     });
+
+    console.log("[DEBUG] Saved payment to DB:", paymentReference);
 
     return res.json({
       success: true,
@@ -94,7 +109,7 @@ exports.initiatePayment = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Payment initiation error:", error.response?.data || error.message);
+    console.error("[ERROR] Payment initiation error:", error.response?.data || error.message);
     return res.status(500).json({
       success: false,
       error: error.response?.data || error.message,
@@ -102,36 +117,50 @@ exports.initiatePayment = async (req, res) => {
   }
 };
 
-// Verify Payment
+// ----------------------------------------------------
+// VERIFY PAYMENT
+// ----------------------------------------------------
 exports.verifyPayment = async (req, res) => {
   try {
-    const transactionReference = (req.body.transactionReference || req.query.transactionReference || "").trim();
+    console.log("[DEBUG] Verify Payment Request Body:", req.body);
+    console.log("[DEBUG] Verify Payment Query Params:", req.query);
+
+    const transactionReference =
+      (req.body.transactionReference || req.query.transactionReference || "").trim();
 
     if (!transactionReference) {
+      console.warn("[DEBUG] Missing transaction reference.");
       return res.status(400).json({ success: false, error: "Missing or invalid transaction reference" });
     }
 
     const token = await getMonnifyToken();
+
+    console.log("[DEBUG] Calling Monnify verify for:", transactionReference);
 
     const monnifyRes = await axios.get(
       `${BASE_URL}/api/v1/merchant/transactions/${transactionReference}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
+    console.log("[DEBUG] Monnify Verify Response:", monnifyRes.data);
+
     const info = monnifyRes.data.responseBody;
 
     if (!info || !info.paymentReference) {
+      console.error("[ERROR] Invalid transaction info from Monnify:", info);
       return res.status(500).json({ success: false, error: "Monnify returned invalid transaction info" });
     }
 
     let payment = await Payment.findOne({ paymentReference: info.paymentReference });
 
     if (payment) {
+      console.log("[DEBUG] Updating existing payment:", info.paymentReference);
       payment.amountPaid = info.amountPaid || 0;
       payment.status = info.paymentStatus || "unknown";
       payment.transactionReference = info.transactionReference;
       await payment.save();
     } else {
+      console.log("[DEBUG] Creating new payment record:", info.paymentReference);
       payment = await Payment.create({
         paymentReference: info.paymentReference,
         amountPaid: info.amountPaid || 0,
@@ -150,7 +179,10 @@ exports.verifyPayment = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Payment verification error:", error.response?.data || error.message);
-    return res.status(500).json({ success: false, error: error.response?.data || error.message });
+    console.error("[ERROR] Payment verification error:", error.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.response?.data || error.message,
+    });
   }
 };
