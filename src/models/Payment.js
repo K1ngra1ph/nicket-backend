@@ -1,15 +1,16 @@
+// src/models/Payment.js
 const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema(
   {
     paymentReference: { type: String, unique: true, required: true },
     transactionReference: { type: String, index: true },
-    
-    // Payment amounts
-    amount: { type: Number, required: true },        // Expected amount
-    amountPaid: { type: Number, default: 0 },        // Amount actually paid
 
-    // Event / game info
+    // Payment amounts
+    amount: { type: Number, required: true },       // expected amount
+    amountPaid: { type: Number, default: 0 },       // actual amount paid
+
+    // Event/game info
     eventValue: { type: String, required: true },
 
     // Player info
@@ -18,13 +19,8 @@ const paymentSchema = new mongoose.Schema(
     phone: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
-    // Status tracking
-    status: { 
-      type: String, 
-      enum: ["pending", "successful", "failed"], 
-      default: "pending",
-      index: true
-    },
+    // Status
+    status: { type: String, enum: ["pending", "successful", "failed"], default: "pending", index: true },
 
     // Metadata for game logic
     metaData: {
@@ -39,25 +35,18 @@ const paymentSchema = new mongoose.Schema(
           message: "selectedNumbers must be a non-empty array of positive integers"
         }
       },
-      winner: { type: Boolean, default: false } // will be set true if player wins
+      winner: { type: Boolean, default: false }
     }
   },
   { timestamps: true }
 );
 
-// Compound index to quickly check if a number has already been claimed in an event
-paymentSchema.index(
-  { "metaData.event": 1, "metaData.selectedNumbers": 1 }, 
-  { unique: false }
-);
+// Index for fast queries on event and selected numbers
+paymentSchema.index({ "metaData.event": 1, "metaData.selectedNumbers": 1 });
 
-// Optional: Static method to find winners for an event
+// Static method to get winners
 paymentSchema.statics.getWinners = function(eventValue) {
-  return this.find({
-    eventValue,
-    "metaData.winner": true,
-    status: "successful"
-  });
+  return this.find({ eventValue, "metaData.winner": true, status: "successful" });
 };
 
 module.exports = mongoose.model("Payment", paymentSchema);

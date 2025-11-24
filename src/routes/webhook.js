@@ -1,3 +1,4 @@
+// src/routes/webhook.js
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
@@ -13,6 +14,7 @@ router.post("/monnify", express.raw({ type: "*/*" }), async (req, res) => {
 
     if (!signatureHeader) return res.status(400).send("Missing signature");
 
+    // Validate HMAC SHA512 signature
     const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
@@ -41,7 +43,7 @@ router.post("/monnify", express.raw({ type: "*/*" }), async (req, res) => {
       await payment.save();
     }
 
-    // Handle number selection if payment is successful
+    // Handle selected numbers if payment is successful
     if (paymentStatus === "SUCCESSFUL" && metaData?.selectedNumbers) {
       const selectedNumbers = Array.isArray(metaData.selectedNumbers)
         ? metaData.selectedNumbers
@@ -56,11 +58,11 @@ router.post("/monnify", express.raw({ type: "*/*" }), async (req, res) => {
       }
 
       // Send winner email
-      if (metaData.playerEmail) {
+      if (metaData.playerEmail && metaData.playerName) {
         try {
           await sendWinnerEmail(metaData.playerEmail, metaData.playerName, selectedNumbers, metaData.event);
         } catch (err) {
-          console.error("❌ Failed to send winner email:", err);
+          console.error("❌ Failed to send winner email:", err.message);
         }
       }
     }

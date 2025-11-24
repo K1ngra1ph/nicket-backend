@@ -2,28 +2,30 @@ const cors = require("cors");
 const express = require("express");
 const userRoutes = require("./routes/userRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
-const webhookRoutes = require("./routes/webhook");
 const merchantRoutes = require("./routes/merchantRoutes");
+const webhookRoutes = require("./routes/webhook");
 
 const app = express();
 
+// CORS config
 app.use(cors({
   origin: "https://nicket-lilac.vercel.app",
   credentials: true,
   methods: "GET,POST,OPTIONS",
   allowedHeaders: "Content-Type,Authorization"
 }));
-s
-app.use("/api/payments/monnify-webhook", express.raw({ type: "*/*" }));
-app.use("/api/webhook/monnify", express.raw({ type: "*/*" }));
 
+app.options("*", cors());
+
+// Middleware order: raw for Monnify webhook
+app.use("/api/webhook", webhookRoutes);
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("🔥 Nicket Backend running with MongoDB!"));
-
+// Routes
 app.use("/api/users", userRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/merchant", merchantRoutes);
-app.use("/api/webhook", webhookRoutes);
+
+app.get("/", (req, res) => res.send("🔥 Nicket Backend running with MongoDB!"));
 
 module.exports = app;
