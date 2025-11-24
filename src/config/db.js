@@ -1,16 +1,17 @@
-const mongoose = require("mongoose");
-
 const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log("✅ MongoDB connected successfully!");
-  } catch (error) {
-    console.error("❌ MongoDB connection failed:", error.message);
-    process.exit(1);
+  const maxRetries = 5;
+  let attempts = 0;
+
+  while (attempts < maxRetries) {
+    try {
+      await mongoose.connect(process.env.MONGO_URI);
+      console.log("✅ MongoDB connected successfully!");
+      break;
+    } catch (error) {
+      attempts++;
+      console.error(`❌ MongoDB connection attempt ${attempts} failed:`, error.message);
+      if (attempts >= maxRetries) process.exit(1);
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
 };
-
-module.exports = connectDB;
