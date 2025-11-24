@@ -29,7 +29,7 @@ async function getMonnifyToken() {
 // Initiate Payment
 exports.initiatePayment = async (req, res) => {
   try {
-    const { name, email, phone, amount, eventValue } = req.body;
+    const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
 
     if (!name || !email || !phone || !amount) {
       return res.status(400).json({ success: false, error: "Missing required fields" });
@@ -56,7 +56,7 @@ exports.initiatePayment = async (req, res) => {
         playerName: name,
         playerEmail: email,
         selectedNumbers: Array.isArray(req.body.selectedNumbers)
-         ? req.body.selectedNumbers.json(",")
+         ? req.body.selectedNumbers.join(",")
          : "",
       },
     };
