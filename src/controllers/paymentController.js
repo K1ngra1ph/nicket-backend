@@ -1,7 +1,9 @@
 const axios = require("axios");
+const crypto = require("crypto");
 const Payment = require("../models/Payment");
 const NumberCount = require("../models/NumberCount");
 const { getMonnifyToken } = require("../services/monnifyService");
+const sendWinnerEmail = require("../utils/sendWinnerEmail");
 
 /**
  * Initiate a payment via Monnify
@@ -10,23 +12,23 @@ exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
 
-    // --------------- VALIDATE INPUT ----------------
+    // Validate input
     if (!name || !email || !phone || !amount || !Array.isArray(selectedNumbers) || selectedNumbers.length === 0) {
-      return res.status(400).json({ message: "Missing required fields or numbers" });
+      return res.status(400).json({ message: "Missing required fields or selected numbers" });
     }
 
-    // --------------- VALIDATE NUMBER LIMIT ----------------
+    // Validate number limits
     for (const num of selectedNumbers) {
-      const numberRecord = await NumberCount.findOne({ eventValue, number: num });
-      if (numberRecord && numberRecord.count >= (numberRecord.maxCount || 10)) {
-        return res.status(400).json({ message: `Number ${num} has already reached the maximum selection limit` });
+      const record = await NumberCount.findOne({ eventValue, number: num });
+      if (record && record.count >= (record.maxCount || 10)) {
+        return res.status(400).json({ message: `Number ${num} has reached maximum selection limit` });
       }
     }
 
-    // --------------- GET MONNIFY TOKEN ----------------
+    // Get Monnify access token
     const accessToken = await getMonnifyToken();
 
-    // --------------- PREPARE PAYMENT ----------------
+    // Prepare payment payload
     const paymentReference = `NICKET-${Date.now()}`;
     const amountInKobo = Number(amount) * 100;
 
@@ -45,22 +47,26 @@ exports.initiatePayment = async (req, res) => {
         event: eventValue,
         playerName: name,
         playerEmail: email,
-        selectedNumbers
+        selectedNumbers: selectedNumbers.join(",") // Must be a string
       }
     };
 
-    // --------------- CALL MONNIFY ----------------
+    // Call Monnify API
     const monnifyResponse = await axios.post(
       "https://api.monnify.com/api/v1/merchant/transactions/init-transaction",
       payload,
-      { headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, timeout: 10000 }
+      {
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        timeout: 10000
+      }
     );
 
     if (!monnifyResponse.data.requestSuccessful) {
+      console.error("Monnify error:", monnifyResponse.data);
       return res.status(500).json({ message: monnifyResponse.data.responseMessage });
     }
 
-    // --------------- SAVE PAYMENT ----------------
+    // Save payment record
     await Payment.create({
       paymentReference,
       amount,
@@ -84,7 +90,7 @@ exports.initiatePayment = async (req, res) => {
 };
 
 /**
- * Monnify Webhook handler
+ * Monnify webhook handler
  */
 exports.monnifyWebhook = async (req, res) => {
   try {
@@ -93,8 +99,7 @@ exports.monnifyWebhook = async (req, res) => {
 
     if (!signatureHeader) return res.status(400).send("Missing signature");
 
-    // Validate signature
-    const expectedSignature = require("crypto").createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
+    const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
 
@@ -102,11 +107,12 @@ exports.monnifyWebhook = async (req, res) => {
 
     const event = JSON.parse(rawBody.toString("utf8"));
     const eventData = event.eventData;
+
     if (!eventData || !eventData.paymentReference) return res.status(400).send("Missing paymentReference");
 
     const { paymentReference, paymentStatus, amountPaid, metaData } = eventData;
 
-    // Fetch payment
+    // Fetch or create payment
     let payment = await Payment.findOne({ paymentReference });
     if (!payment) {
       payment = await Payment.create({
@@ -121,11 +127,9 @@ exports.monnifyWebhook = async (req, res) => {
       await payment.save();
     }
 
-    // ----- Handle selected numbers -----
+    // Handle selected numbers and winner logic
     if (paymentStatus === "SUCCESSFUL" && metaData?.selectedNumbers) {
-      const selectedNumbers = Array.isArray(metaData.selectedNumbers)
-        ? metaData.selectedNumbers
-        : metaData.selectedNumbers.map(Number);
+      const selectedNumbers = metaData.selectedNumbers.toString().split(",").map(n => parseInt(n));
 
       for (const num of selectedNumbers) {
         await NumberCount.findOneAndUpdate(
@@ -135,9 +139,8 @@ exports.monnifyWebhook = async (req, res) => {
         );
       }
 
-      // ----- Send winner email -----
+      // Send winner email
       if (metaData.playerEmail) {
-        const sendWinnerEmail = require("../utils/sendWinnerEmail");
         try {
           await sendWinnerEmail(metaData.playerEmail, metaData.playerName, selectedNumbers, metaData.event);
         } catch (err) {
