@@ -3,7 +3,7 @@ const express = require("express");
 const userRoutes = require("./routes/userRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const merchantRoutes = require("./routes/merchantRoutes");
-const webhookRoutes = require("./routes/webhook");
+const webhookRoutes = require("./routes/webhook"); // Add this
 
 const app = express();
 
