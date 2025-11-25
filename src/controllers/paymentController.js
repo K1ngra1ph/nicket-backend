@@ -112,8 +112,10 @@ exports.verifyPayment = async (req, res) => {
         payment.amountPaid = transaction.amountPaid || payment.amountPaid;
         await payment.save();
 
+        const isSuccess = ["SUCCESS", "SUCCESSFUL", "PAID"].includes(transaction.paymentStatus.toUpperCase());
+
         return res.json({
-            success: transaction.paymentStatus === "SUCCESS",
+            success: isSuccess,
             status: transaction.paymentStatus,
             data: payment
         });
