@@ -37,7 +37,7 @@ exports.initiatePayment = async (req, res) => {
             currencyCode: "NGN",
             contractCode: process.env.MONNIFY_CONTRACT_CODE,
 
-            redirectUrl: `https://nicket-lilac.vercel.app/?reference=${paymentReference}`,
+            redirectUrl: "https://nicket-lilac.vercel.app",
 
             metaData: {
                 event: eventValue,
