@@ -81,25 +81,50 @@ exports.initiatePayment = async (req, res) => {
   }
 };
 
-// Verify Payment (DB-based)
 exports.verifyPayment = async (req, res) => {
   try {
     const { reference } = req.query;
     if (!reference)
       return res.status(400).json({ success: false, message: "Missing payment reference" });
 
-    const payment = await Payment.findOne({ paymentReference: reference });
+    // Find payment in DB first
+    let payment = await Payment.findOne({ paymentReference: reference });
     if (!payment)
       return res.status(404).json({ success: false, message: "Payment not found" });
 
-    const status = (payment.status || "").toUpperCase();
-    const isSuccessful = ["SUCCESS", "SUCCESSFUL", "PAID"].includes(status);
+    // Fetch latest status from Monnify
+    try {
+      const accessToken = await getMonnifyToken();
+      const monnifyResponse = await axios.get(
+        `https://sandbox.monnify.com/api/v2/transactions/${reference}`,
+        { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 }
+      );
+
+      const data = monnifyResponse.data;
+
+      if (data.requestSuccessful && data.responseBody) {
+        const transaction = data.responseBody;
+
+        // Update DB with latest status
+        payment.status = transaction.paymentStatus.toLowerCase();
+        payment.amountPaid = transaction.amountPaid || payment.amountPaid;
+        await payment.save();
+      }
+    } catch (err) {
+      console.warn("⚠️ Could not fetch from Monnify, using DB status", err.message);
+      // If Monnify call fails, just return DB info
+    }
+
+    const isSuccess = ["SUCCESS", "SUCCESSFUL", "PAID"].includes(
+      (payment.status || "").toUpperCase()
+    );
 
     return res.json({
-      success: isSuccessful,
+      success: isSuccess,
       status: payment.status,
       data: payment
     });
+
   } catch (err) {
     console.error("❌ Payment verification error:", err.stack || err.message);
     return res.status(500).json({ success: false, message: "Internal error verifying payment" });
