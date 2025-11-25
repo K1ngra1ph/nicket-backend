@@ -5,14 +5,6 @@ const NumberCount = require("../models/NumberCount");
 const { getMonnifyToken } = require("../services/monnifyService");
 const sendWinnerEmail = require("../utils/sendWinnerEmail");
 
-/**
- * 1. INITIATE PAYMENT
- * Redirect flow:
- * - SUCCESS → /index?reference=XXXX
- * - FAILURE → /game?failed=true&reference=XXXX
- *
- * (We only redirect to success page. Failure is detected in the verification stage)
- */
 exports.initiatePayment = async (req, res) => {
     try {
         const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
@@ -21,7 +13,6 @@ exports.initiatePayment = async (req, res) => {
             return res.status(400).json({ message: "Missing required fields or selected numbers" });
         }
 
-        // Validate selected numbers
         for (const num of selectedNumbers) {
             const record = await NumberCount.findOne({ eventValue, number: num });
             if (record && record.count >= (record.maxCount || 10)) {
@@ -46,12 +37,7 @@ exports.initiatePayment = async (req, res) => {
             currencyCode: "NGN",
             contractCode: process.env.MONNIFY_CONTRACT_CODE,
 
-            /**
-             * REDIRECT URL (ONLY success → index.html)
-             * For failure: index.html detects failure during verification
-             * and redirects user to: /game?failed=true&reference=XXXX
-             */
-            redirectUrl: `https://nicket-lilac.vercel.app/index?reference=${paymentReference}`,
+            redirectUrl: `https://nicket-lilac.vercel.app/?reference=${paymentReference}`,
 
             metaData: {
                 event: eventValue,
@@ -74,7 +60,6 @@ exports.initiatePayment = async (req, res) => {
             return res.status(500).json({ message: monnifyResponse.data.responseMessage });
         }
 
-        // Save initial transaction
         await Payment.create({
             paymentReference,
             amount,
@@ -98,18 +83,6 @@ exports.initiatePayment = async (req, res) => {
     }
 };
 
-/**
- * 2. VERIFY PAYMENT (Used by index.html & game.html)
- *
- * index.html:
- *   → /verify-payment?reference=XXXX
- *   If status=SUCCESS → show success popup
- *   Else → redirect /game?failed=true&reference=XXXX
- *
- * game.html:
- *   → /verify-payment?reference=XXXX (optional)
- *   Shows failure popup immediately
- */
 exports.verifyPayment = async (req, res) => {
     try {
         const { reference } = req.query;
@@ -151,9 +124,6 @@ exports.verifyPayment = async (req, res) => {
     }
 };
 
-/**
- * 3. WEBHOOK (keeps DB synced even if browser closes)
- */
 exports.monnifyWebhook = async (req, res) => {
     try {
         const rawBody = req.body;
@@ -192,7 +162,6 @@ exports.monnifyWebhook = async (req, res) => {
             await payment.save();
         }
 
-        // Increase number count & email
         if (paymentStatus === "SUCCESSFUL" && metaData?.selectedNumbers) {
             const selectedNumbers = metaData.selectedNumbers
                 .toString()
