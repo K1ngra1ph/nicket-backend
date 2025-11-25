@@ -5,19 +5,14 @@ const NumberCount = require("../models/NumberCount");
 const { getMonnifyToken } = require("../services/monnifyService");
 const sendWinnerEmail = require("../utils/sendWinnerEmail");
 
-/**
- * Initiate a payment via Monnify
- */
 exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
 
-    // Validate input
     if (!name || !email || !phone || !amount || !Array.isArray(selectedNumbers) || selectedNumbers.length === 0) {
       return res.status(400).json({ message: "Missing required fields or selected numbers" });
     }
 
-    // Validate number limits
     for (const num of selectedNumbers) {
       const record = await NumberCount.findOne({ eventValue, number: num });
       if (record && record.count >= (record.maxCount || 10)) {
@@ -25,10 +20,7 @@ exports.initiatePayment = async (req, res) => {
       }
     }
 
-    // Get Monnify access token
     const accessToken = await getMonnifyToken();
-
-    // Prepare payment payload
     const paymentReference = `NICKET-${Date.now()}`;
     const amountInNaira = Number(amount);
 
@@ -42,22 +34,24 @@ exports.initiatePayment = async (req, res) => {
       paymentDescription: `Nicket Payment - ${eventValue || "Wallet"}`,
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl: "https://nicket-lilac.vercel.app/game?paid=true",
+
+      redirectUrl: `https://nicket-lilac.vercel.app/?reference=${paymentReference}`,
+
       metaData: {
         event: eventValue,
         playerName: name,
         playerEmail: email,
-        selectedNumbers: selectedNumbers.join(",")
-      }
+        selectedNumbers: selectedNumbers.join(","),
+      },
     };
 
-    // Call Monnify API
+    // Call Monnify
     const monnifyResponse = await axios.post(
       "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction",
       payload,
       {
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        timeout: 10000
+        timeout: 10000,
       }
     );
 
@@ -66,7 +60,7 @@ exports.initiatePayment = async (req, res) => {
       return res.status(500).json({ message: monnifyResponse.data.responseMessage });
     }
 
-    // Save payment record
+    // Store payment record
     await Payment.create({
       paymentReference,
       amount,
@@ -75,14 +69,14 @@ exports.initiatePayment = async (req, res) => {
       name,
       email,
       phone,
-      metaData: payload.metaData
+      status: "pending",
+      metaData: payload.metaData,
     });
 
     res.json({
       paymentReference,
-      checkoutUrl: monnifyResponse.data.responseBody.checkoutUrl
+      checkoutUrl: monnifyResponse.data.responseBody.checkoutUrl,
     });
-
   } catch (err) {
     console.error("❌ Payment initiation error:", err.response?.data || err.stack || err.message);
     res.status(500).json({ message: "Payment failed", error: err.message });
@@ -90,16 +84,66 @@ exports.initiatePayment = async (req, res) => {
 };
 
 /**
- * Monnify webhook handler
+ * 2. VERIFY PAYMENT
+ * Called BY Frontend (index.html or game.html)
+ * index.html expects ONLY successful verification
+ * game.html handles all other outcomes (failed/invalid)
  */
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { reference } = req.query;
+
+    if (!reference) return res.status(400).json({ success: false, message: "Missing payment reference" });
+
+    const accessToken = await getMonnifyToken();
+
+    // Query Monnify transaction
+    const verifyResponse = await axios.get(
+      `https://sandbox.monnify.com/api/v2/transactions/${reference}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      }
+    );
+
+    const data = verifyResponse.data;
+
+    if (!data.requestSuccessful)
+      return res.status(400).json({ success: false, message: "Verification failed" });
+
+    const transaction = data.responseBody;
+
+    // Update local database
+    const payment = await Payment.findOne({ paymentReference: reference });
+    if (!payment) {
+      return res.status(404).json({ success: false, message: "Payment not found" });
+    }
+
+    payment.status = transaction.paymentStatus.toLowerCase();
+    payment.amountPaid = transaction.amountPaid || payment.amountPaid;
+    await payment.save();
+
+    return res.json({
+      success: transaction.paymentStatus === "SUCCESS",
+      status: transaction.paymentStatus,
+      data: payment,
+    });
+
+  } catch (err) {
+    console.error("❌ Payment verification error:", err.stack || err.message);
+    return res.status(500).json({ success: false, message: "Internal error verifying payment" });
+  }
+};
+
 exports.monnifyWebhook = async (req, res) => {
   try {
-    const rawBody = req.body; // raw buffer
+    const rawBody = req.body;
     const signatureHeader = req.headers["monnify-signature"];
 
     if (!signatureHeader) return res.status(400).send("Missing signature");
 
-    const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
+    const expectedSignature = crypto
+      .createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
 
@@ -112,14 +156,13 @@ exports.monnifyWebhook = async (req, res) => {
 
     const { paymentReference, paymentStatus, amountPaid, metaData } = eventData;
 
-    // Fetch or create payment
     let payment = await Payment.findOne({ paymentReference });
     if (!payment) {
       payment = await Payment.create({
         paymentReference,
         amountPaid: amountPaid || 0,
         status: paymentStatus?.toLowerCase() || "unknown",
-        metaData: metaData || {}
+        metaData: metaData || {},
       });
     } else {
       payment.status = paymentStatus.toLowerCase();
@@ -127,9 +170,8 @@ exports.monnifyWebhook = async (req, res) => {
       await payment.save();
     }
 
-    // Handle selected numbers and winner logic
     if (paymentStatus === "SUCCESSFUL" && metaData?.selectedNumbers) {
-      const selectedNumbers = metaData.selectedNumbers.toString().split(",").map(n => parseInt(n));
+      const selectedNumbers = metaData.selectedNumbers.toString().split(",").map((n) => parseInt(n));
 
       for (const num of selectedNumbers) {
         await NumberCount.findOneAndUpdate(
@@ -139,7 +181,6 @@ exports.monnifyWebhook = async (req, res) => {
         );
       }
 
-      // Send winner email
       if (metaData.playerEmail) {
         try {
           await sendWinnerEmail(metaData.playerEmail, metaData.playerName, selectedNumbers, metaData.event);
