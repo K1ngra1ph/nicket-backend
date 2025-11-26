@@ -6,6 +6,8 @@ router.post("/initiate-payment", initiatePayment);
 
 router.get("/verify-payment", verifyPayment);
 
+router.get("/redirect", redirectAfterPayment);
+
 router.post("/monnify-webhook", express.raw({ type: "*/*" }), monnifyWebhook);
 
 module.exports = router;
