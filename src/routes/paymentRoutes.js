@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { initiatePayment, verifyPayment, monnifyWebhook } = require("../controllers/paymentController");
+const { initiatePayment, verifyPayment, redirectAfterPayment, monnifyWebhook } = require("../controllers/paymentController");
 
 router.post("/initiate-payment", initiatePayment);
 
