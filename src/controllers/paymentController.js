@@ -5,7 +5,7 @@ const NumberCount = require("../models/NumberCount");
 const { getMonnifyToken } = require("../services/monnifyService");
 const sendWinnerEmail = require("../utils/sendWinnerEmail");
 
-// Initiate Payment
+// 1. INITIATE PAYMENT
 exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
@@ -14,7 +14,6 @@ exports.initiatePayment = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields or selected numbers" });
     }
 
-    // Check number availability
     for (const num of selectedNumbers) {
       const record = await NumberCount.findOne({ eventValue, number: num });
       if (record && record.count >= (record.maxCount || 10)) {
@@ -36,7 +35,7 @@ exports.initiatePayment = async (req, res) => {
       paymentDescription: `Nicket Payment - ${eventValue || "Wallet"}`,
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
-      redirectUrl: "https://nicket-lilac.vercel.app",
+      redirectUrl: "https://nicket-backend.onrender.com/api/payments/redirect",
       metaData: {
         event: eventValue,
         playerName: name,
@@ -49,7 +48,7 @@ exports.initiatePayment = async (req, res) => {
       "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction",
       payload,
       {
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${accessToken}` },
         timeout: 10000
       }
     );
@@ -76,14 +75,17 @@ exports.initiatePayment = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Payment initiation error:", err.response?.data || err.stack || err.message);
+    console.error("❌ Payment initiation error:", err.response?.data || err.message);
     res.status(500).json({ message: "Payment failed", error: err.message });
   }
 };
 
+
+// 2. VERIFY PAYMENT
 exports.verifyPayment = async (req, res) => {
   try {
-    const { reference } = req.query;
+    const reference = req.query.reference || req.body.paymentReference;
+
     if (!reference)
       return res.status(400).json({ success: false, message: "Missing payment reference" });
 
@@ -91,7 +93,6 @@ exports.verifyPayment = async (req, res) => {
     if (!payment)
       return res.status(404).json({ success: false, message: "Payment not found" });
 
-    // Fetch latest status from Monnify API
     try {
       const token = await getMonnifyToken();
       const monnifyRes = await axios.get(
@@ -106,7 +107,7 @@ exports.verifyPayment = async (req, res) => {
         await payment.save();
       }
     } catch (err) {
-      console.warn("⚠️ Monnify API error, returning DB status:", err.message);
+      console.warn("⚠️ Monnify verification error:", err.message);
     }
 
     const isSuccess = ["success", "successful", "paid"].includes((payment.status || "").toLowerCase());
@@ -118,12 +119,40 @@ exports.verifyPayment = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Payment verification error:", err.stack || err.message);
+    console.error("❌ Payment verification error:", err.message);
     return res.status(500).json({ success: false, message: "Internal error verifying payment" });
   }
 };
 
-// Monnify Webhook
+
+// 3. REDIRECT AFTER PAYMENT
+exports.redirectAfterPayment = async (req, res) => {
+  try {
+    const { paymentReference } = req.query;
+
+    if (!paymentReference) {
+      return res.redirect("https://nicket-lilac.vercel.app/game.html?status=failed");
+    }
+
+    const verifyUrl = `${process.env.BACKEND_URL}/api/payments/verify-payment?reference=${paymentReference}`;
+    const result = await axios.get(verifyUrl);
+
+    const isSuccess = result.data?.success;
+
+    if (isSuccess) {
+      return res.redirect("https://nicket-lilac.vercel.app/index.html?status=success");
+    } else {
+      return res.redirect("https://nicket-lilac.vercel.app/game.html?status=failed");
+    }
+
+  } catch (err) {
+    console.error("Redirect error:", err.message);
+    return res.redirect("https://nicket-lilac.vercel.app/game.html?status=failed");
+  }
+};
+
+
+// 4. WEBHOOK (unchanged)
 exports.monnifyWebhook = async (req, res) => {
   try {
     const rawBody = req.body;
@@ -131,7 +160,6 @@ exports.monnifyWebhook = async (req, res) => {
 
     if (!signatureHeader) return res.status(400).send("Missing signature");
 
-    // Validate HMAC SHA512 signature
     const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
@@ -145,7 +173,6 @@ exports.monnifyWebhook = async (req, res) => {
 
     const { paymentReference, paymentStatus, amountPaid, metaData, paymentMethod } = eventData;
 
-    // Update or create payment record
     let payment = await Payment.findOne({ paymentReference });
     const status = (paymentStatus || "").toUpperCase();
 
@@ -163,7 +190,6 @@ exports.monnifyWebhook = async (req, res) => {
       await payment.save();
     }
 
-    // Handle selected numbers if successful
     const isSuccessful = ["SUCCESS", "SUCCESSFUL", "PAID"].includes(status);
     if (isSuccessful && metaData?.selectedNumbers) {
       const selectedNumbers = Array.isArray(metaData.selectedNumbers)
@@ -178,7 +204,6 @@ exports.monnifyWebhook = async (req, res) => {
         );
       }
 
-      // Send winner email
       if (metaData.playerEmail && metaData.playerName) {
         try {
           await sendWinnerEmail(metaData.playerEmail, metaData.playerName, selectedNumbers, metaData.event);
@@ -190,7 +215,7 @@ exports.monnifyWebhook = async (req, res) => {
 
     res.status(200).json({ success: true });
   } catch (err) {
-    console.error("❌ Webhook processing error:", err.stack || err.message);
+    console.error("❌ Webhook processing error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 };
