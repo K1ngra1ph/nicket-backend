@@ -143,35 +143,42 @@ exports.verifyPayment = async (req, res) => {
 
 exports.redirectAfterPayment = async (req, res) => {
   try {
-    const { paymentReference } = req.query;
+    const paymentReference = req.query.paymentReference;
+
     if (!paymentReference) {
       return res.redirect(`${FRONTEND_URL}/game.html?failed=true`);
     }
 
-    const paymentRecord = await Payment.findOne({ paymentReference });
+    let payment = await Payment.findOne({ paymentReference });
 
-    if (!paymentRecord) {
-      return res.redirect(`${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`);
+    if (!payment) {
+      return res.redirect(
+        `${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`
+      );
     }
-    if (normalizeStatus(paymentRecord.status) === "success") {
-      return res.redirect(`${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`);
+
+    const status = normalizeStatus(payment.status);
+    if (status === "success") {
+      return res.redirect(
+        `${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`
+      );
     }
+
     try {
       const verifyUrl = `${BACKEND_URL}/api/payments/verify-payment?reference=${encodeURIComponent(paymentReference)}`;
-      const verifyRes = await axios.get(verifyUrl, { timeout: 10000 });
-      const remoteSuccess = verifyRes?.data?.success === true;
+      const verify = await axios.get(verifyUrl, { timeout: 8000 });
 
-      if (remoteSuccess) {
-        return res.redirect(`${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`);
-      } else {
-        return res.redirect(`${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`);
+      if (verify?.data?.success === true) {
+        return res.redirect(
+          `${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`
+        );
       }
-    } catch (err) {
-      console.warn("⚠️ Redirect verify-step failed, falling back to DB status:", err.message);
-      return res.redirect(`${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`);
-    }
-  } catch (error) {
-    console.error("Redirect error:", error);
+    } catch {}
+
+    return res.redirect(
+      `${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`
+    );
+  } catch (err) {
     return res.redirect(`${FRONTEND_URL}/game.html?failed=true`);
   }
 };
