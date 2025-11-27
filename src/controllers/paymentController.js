@@ -124,33 +124,40 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
-
-// 3. REDIRECT AFTER PAYMENT
 exports.redirectAfterPayment = async (req, res) => {
   try {
     const { paymentReference } = req.query;
 
     if (!paymentReference) {
-      return res.redirect("https://nicket-lilac.vercel.app/game.html?status=failed");
+      return res.redirect(
+        "https://nicket-lilac.vercel.app/game.html?failed=true"
+      );
     }
 
-    const verifyUrl = `${process.env.BACKEND_URL}/api/payments/verify-payment?reference=${paymentReference}`;
-    const result = await axios.get(verifyUrl);
+    const paymentRecord = await Payment.findOne({ paymentReference });
 
-    const isSuccess = result.data?.success;
-
-    if (isSuccess) {
-      return res.redirect("https://nicket-lilac.vercel.app/index.html?status=success");
-    } else {
-      return res.redirect("https://nicket-lilac.vercel.app/game.html?status=failed");
+    if (!paymentRecord) {
+      return res.redirect(
+        `https://nicket-lilac.vercel.app/game.html?failed=true&paymentReference=${paymentReference}`
+      );
     }
 
-  } catch (err) {
-    console.error("Redirect error:", err.message);
-    return res.redirect("https://nicket-lilac.vercel.app/game.html?status=failed");
+    if (paymentRecord.status === "success") {
+      return res.redirect(
+        `https://nicket-lilac.vercel.app/index.html?paymentReference=${paymentReference}`
+      );
+    }
+    return res.redirect(
+      `https://nicket-lilac.vercel.app/game.html?failed=true&paymentReference=${paymentReference}`
+    );
+
+  } catch (error) {
+    console.error("Redirect error:", error);
+    return res.redirect(
+      "https://nicket-lilac.vercel.app/game.html?failed=true"
+    );
   }
 };
-
 
 // 4. WEBHOOK (unchanged)
 exports.monnifyWebhook = async (req, res) => {
