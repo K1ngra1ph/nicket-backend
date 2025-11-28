@@ -58,7 +58,7 @@ exports.initiatePayment = async (req, res) => {
       amount: amountInNaira,
       customerName: name,
       customerEmail: email,
-      customerPhone: req.body.customerPhone.replace(/\+/g, ""),
+      customerPhone: phone,
       customerId: email,
       paymentReference,
       paymentDescription: `Nicket Payment - ${eventValue || "Wallet"}`,
