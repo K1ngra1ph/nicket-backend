@@ -69,9 +69,7 @@ exports.initiatePayment = async (req, res) => {
         event: eventValue,
         playerName: name,
         playerEmail: email,
-        selectedNumbers: Array.isArray(req.body.metaData.selectedNumbers)
-          ? req.body.metaData.selectedNumbers.join(",")
-          : req.body.metaData.selectedNumbers
+        selectedNumbers: numbersToSend,
       }
     };
 
