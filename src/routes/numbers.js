@@ -9,10 +9,19 @@ router.get("/availability", async (req, res) => {
     const usageCount = {};
 
     payments.forEach(p => {
-      p.selectedNumbers.forEach(num => {
-        usageCount[num] = (usageCount[num] || 0) + 1;
-      });
+      if (Array.isArray(p.selectedNumbers)) {
+        p.selectedNumbers.forEach(num => {
+          const n = Number(num);
+          if (!isNaN(n) && n > 0) {
+            usageCount[n] = (usageCount[n] || 0) + 1;
+          }
+        });
+      }
     });
+
+    for (let i = 1; i <= 100; i++) {
+      if (!usageCount[i]) usageCount[i] = 0;
+    }
 
     return res.json(usageCount);
   } catch (err) {
