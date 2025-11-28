@@ -3,11 +3,11 @@ const express = require("express");
 const userRoutes = require("./routes/userRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const merchantRoutes = require("./routes/merchantRoutes");
-const webhookRoutes = require("./routes/webhook"); // Add this
+const webhookRoutes = require("./routes/webhook");
+const numberRoutes = require("./routes/numbers");
 
 const app = express();
 
-// CORS config
 app.use(cors({
   origin: "https://nicket-lilac.vercel.app",
   credentials: true,
@@ -17,11 +17,9 @@ app.use(cors({
 
 app.options("*", cors());
 
-// Middleware order: raw for Monnify webhook
 app.use("/api/webhook", webhookRoutes);
 app.use(express.json());
-
-// Routes
+app.use("/api/numbers", numberRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/merchant", merchantRoutes);
