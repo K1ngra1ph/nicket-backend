@@ -29,6 +29,11 @@ exports.initiatePayment = async (req, res) => {
       return res.status(400).json({ message: "Invalid amount" });
     }
 
+    const numbersToSend = selectedNumbers.map(n => Number(n));
+    if (!numbersToSend.every(n => Number.isInteger(n) && n > 0)) {
+      return res.status(400).json({ message: "Invalid selected numbers" });
+    }
+
     for (const num of selectedNumbers) {
       const record = await NumberCount.findOne({ eventValue, number: num });
       if (record && record.count >= (record.maxCount || 10)) {
@@ -54,7 +59,7 @@ exports.initiatePayment = async (req, res) => {
         event: eventValue,
         playerName: name,
         playerEmail: email,
-        selectedNumbers: selectedNumbers.join(","),
+        selectedNumbers: numbersToSend,
       }
     };
 
