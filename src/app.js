@@ -7,17 +7,14 @@ const numberRoutes = require("./routes/numbers");
 const app = express();
 
 app.use(cors({
-  origin: "https://nicket-lilac.vercel.app",
+  origin: process.env.FRONTEND_URL,
   credentials: true,
   methods: "GET,POST,OPTIONS",
   allowedHeaders: "Content-Type,Authorization"
 }));
 app.options("*", cors());
 
-app.use("/api/payments/monnify-webhook", express.raw({ type: "*/*" }));
-
 app.use(express.json());
-
 app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);

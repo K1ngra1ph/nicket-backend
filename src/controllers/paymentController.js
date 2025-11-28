@@ -14,24 +14,10 @@ const BASE_URL =
 ====================================================== */
 function normalizeSelectedNumbers(value) {
   console.log("🟦 [DEBUG] Raw selectedNumbers received:", value);
-
   if (!value) return [];
-
-  if (Array.isArray(value)) {
-    const nums = value.map(n => Number(n)).filter(n => !isNaN(n));
-    console.log("🟦 [DEBUG] Array → normalized:", nums);
-    return nums;
-  }
-
-  if (typeof value === "string") {
-    const nums = value.split(",").map(n => Number(n)).filter(n => !isNaN(n));
-    console.log("🟦 [DEBUG] String → normalized:", nums);
-    return nums;
-  }
-
-  const num = [Number(value)].filter(n => !isNaN(n));
-  console.log("🟦 [DEBUG] Single value → normalized:", num);
-  return num;
+  if (Array.isArray(value)) return value.map(n => Number(n)).filter(n => !isNaN(n));
+  if (typeof value === "string") return value.split(",").map(n => Number(n)).filter(n => !isNaN(n));
+  return [Number(value)].filter(n => !isNaN(n));
 }
 
 /* ======================================================
@@ -41,31 +27,30 @@ exports.initiatePayment = async (req, res) => {
   try {
     console.log("🔵 [DEBUG] Incoming initiatePayment body:", req.body);
 
-    let { amount, customerName, customerEmail, customerPhone, selectedNumbers, event } = req.body;
-    selectedNumbers = normalizeSelectedNumbers(selectedNumbers);
-    console.log("🔵 [DEBUG] Normalized selectedNumbers:", selectedNumbers);
+    const { amount, name, email, phone, selectedNumbers, eventValue } = req.body;
+    const numbers = normalizeSelectedNumbers(selectedNumbers);
+    console.log("🔵 [DEBUG] Normalized selectedNumbers:", numbers);
 
     const token = await getMonnifyToken();
     console.log("🔵 [DEBUG] Retrieved Monnify token");
 
     const paymentReference = `NICKET-${Date.now()}`;
-
     const payload = {
       amount,
       paymentReference,
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerId: customerEmail,
-      paymentDescription: `Nicket Payment - ${event}`,
+      customerName: name,
+      customerEmail: email,
+      customerPhone: phone,
+      customerId: email,
+      paymentDescription: `Nicket Payment - ${eventValue}`,
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
       redirectUrl: `${process.env.BACKEND_URL}/api/payments/redirect`,
       metaData: {
-        event,
-        playerName: customerName,
-        playerEmail: customerEmail,
-        selectedNumbers: selectedNumbers.join(","), // Monnify expects string
+        event: eventValue,
+        playerName: name,
+        playerEmail: email,
+        selectedNumbers: numbers.join(","),
       }
     };
 
@@ -77,10 +62,8 @@ exports.initiatePayment = async (req, res) => {
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    console.log("💳 [DEBUG] Monnify INIT raw response:", response.data);
-
+    console.log("💳 [DEBUG] Monnify INIT response:", response.data);
     if (!response.data.requestSuccessful) {
-      console.log("❌ [DEBUG] Monnify returned requestSuccessful=false");
       return res.status(400).json({ message: "Monnify init failed", error: response.data });
     }
 
@@ -91,12 +74,12 @@ exports.initiatePayment = async (req, res) => {
       transactionReference: txnReference,
       amount,
       amountPaid: 0,
-      eventValue: event,
-      name: customerName,
-      email: customerEmail,
-      phone: customerPhone,
+      eventValue,
+      name,
+      email,
+      phone,
       status: "pending",
-      metaData: { event, playerName: customerName, playerEmail: customerEmail, selectedNumbers, winner: false }
+      metaData: { event: eventValue, playerName: name, playerEmail: email, selectedNumbers: numbers, winner: false }
     });
 
     console.log("💾 [DEBUG] Payment saved in DB successfully");
@@ -115,14 +98,14 @@ exports.initiatePayment = async (req, res) => {
 };
 
 /* ======================================================
-   VERIFY WITH MONNIFY
+   VERIFY PAYMENT WITH MONNIFY
 ====================================================== */
 async function verifyWithMonnify(transactionReference) {
   console.log("🟣 [DEBUG] Verifying transaction:", transactionReference);
   const token = await getMonnifyToken();
   const url = `${BASE_URL}/api/v2/transactions/${transactionReference}`;
   const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
-  console.log("🟣 [DEBUG] Verification raw response:", response.data);
+  console.log("🟣 [DEBUG] Verification response:", response.data);
   return response.data;
 }
 
@@ -131,14 +114,11 @@ async function verifyWithMonnify(transactionReference) {
 ====================================================== */
 exports.redirectAfterPayment = async (req, res) => {
   try {
-    console.log("🔵 [DEBUG] Redirect triggered:", req.query);
-    const paymentReference = req.query.paymentReference;
-    const payment = await Payment.findOne({ paymentReference });
+    const { paymentReference } = req.query;
+    console.log("🔵 [DEBUG] Redirect triggered for:", paymentReference);
 
-    if (!payment) {
-      console.log("❌ [DEBUG] Payment not found");
-      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
-    }
+    const payment = await Payment.findOne({ paymentReference });
+    if (!payment) return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
 
     const verifyData = await verifyWithMonnify(payment.transactionReference);
     const status = verifyData.responseBody?.paymentStatus;
@@ -148,11 +128,9 @@ exports.redirectAfterPayment = async (req, res) => {
       payment.status = "successful";
       payment.amountPaid = verifyData.responseBody.amountPaid;
       await payment.save();
-      console.log("✅ [DEBUG] Payment marked as successful");
       return res.redirect(`${process.env.FRONTEND_URL}/payment-success.html`);
     }
 
-    console.log("❌ [DEBUG] Payment NOT PAID");
     return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
 
   } catch (err) {
@@ -167,7 +145,6 @@ exports.redirectAfterPayment = async (req, res) => {
 exports.monnifyWebhook = async (req, res) => {
   try {
     console.log("📩 [DEBUG] Webhook received");
-
     const rawBody = req.body;
     const signatureHeader = req.headers["monnify-signature"];
     if (!signatureHeader) return res.status(400).send("Missing signature");
@@ -175,14 +152,11 @@ exports.monnifyWebhook = async (req, res) => {
     const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
-
     if (expectedSignature !== signatureHeader) return res.status(403).send("Invalid signature");
 
     const event = JSON.parse(rawBody.toString("utf8"));
-    const eventData = event.eventData;
-    if (!eventData?.paymentReference) return res.status(400).send("Missing paymentReference");
+    const { paymentReference, paymentStatus, amountPaid, metaData } = event.eventData;
 
-    const { paymentReference, paymentStatus, amountPaid, metaData } = eventData;
     console.log("📩 [DEBUG] Webhook data:", { paymentReference, paymentStatus, amountPaid });
 
     let payment = await Payment.findOne({ paymentReference });
@@ -232,10 +206,7 @@ exports.verifyPayment = async (req, res) => {
     console.log("🟢 [DEBUG] verifyPayment for:", paymentReference);
 
     const payment = await Payment.findOne({ paymentReference });
-    if (!payment) {
-      console.log("❌ [DEBUG] Payment not found");
-      return res.status(404).json({ message: "Not found" });
-    }
+    if (!payment) return res.status(404).json({ message: "Not found" });
 
     const verifyData = await verifyWithMonnify(payment.transactionReference);
     console.log("🟢 [DEBUG] verifyPayment response:", verifyData);
