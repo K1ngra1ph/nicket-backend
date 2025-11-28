@@ -1,4 +1,5 @@
 const axios = require("axios");
+const crypto = require("crypto");
 const Payment = require("../models/Payment");
 const SelectedNumber = require("../models/SelectedNumber");
 const { getMonnifyToken } = require("../services/monnifyService");
@@ -40,15 +41,7 @@ exports.initiatePayment = async (req, res) => {
   try {
     console.log("🔵 [DEBUG] Incoming initiatePayment body:", req.body);
 
-    let {
-      amount,
-      customerName,
-      customerEmail,
-      customerPhone,
-      selectedNumbers,
-      event
-    } = req.body;
-
+    let { amount, customerName, customerEmail, customerPhone, selectedNumbers, event } = req.body;
     selectedNumbers = normalizeSelectedNumbers(selectedNumbers);
     console.log("🔵 [DEBUG] Normalized selectedNumbers:", selectedNumbers);
 
@@ -72,13 +65,12 @@ exports.initiatePayment = async (req, res) => {
         event,
         playerName: customerName,
         playerEmail: customerEmail,
-        selectedNumbers: selectedNumbers.join(","), // KEEPING YOUR REQUEST
+        selectedNumbers: selectedNumbers.join(","), // Monnify expects string
       }
     };
 
     console.log("💳 [DEBUG] Monnify INIT payload:", JSON.stringify(payload, null, 2));
 
-    // Send Init Transaction request
     const response = await axios.post(
       `${BASE_URL}/api/v1/merchant/transactions/init-transaction`,
       payload,
@@ -89,16 +81,11 @@ exports.initiatePayment = async (req, res) => {
 
     if (!response.data.requestSuccessful) {
       console.log("❌ [DEBUG] Monnify returned requestSuccessful=false");
-      return res.status(400).json({
-        message: "Monnify init failed",
-        error: response.data
-      });
+      return res.status(400).json({ message: "Monnify init failed", error: response.data });
     }
 
     const txnReference = response.data.responseBody.transactionReference;
-    console.log("💳 [DEBUG] Monnify Transaction Reference:", txnReference);
 
-    // SAVE TRANSACTION
     await Payment.create({
       paymentReference,
       transactionReference: txnReference,
@@ -109,13 +96,7 @@ exports.initiatePayment = async (req, res) => {
       email: customerEmail,
       phone: customerPhone,
       status: "pending",
-      metaData: {
-        event,
-        playerName: customerName,
-        playerEmail: customerEmail,
-        selectedNumbers, // KEEPING ARRAY IN DB
-        winner: false
-      }
+      metaData: { event, playerName: customerName, playerEmail: customerEmail, selectedNumbers, winner: false }
     });
 
     console.log("💾 [DEBUG] Payment saved in DB successfully");
@@ -128,28 +109,20 @@ exports.initiatePayment = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ [DEBUG] Initiate Payment ERROR:", err.response?.data || err.message);
+    console.error("❌ [DEBUG] initiatePayment ERROR:", err.response?.data || err.message);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
 /* ======================================================
-   VERIFY WITH MONNIFY V2
+   VERIFY WITH MONNIFY
 ====================================================== */
 async function verifyWithMonnify(transactionReference) {
   console.log("🟣 [DEBUG] Verifying transaction:", transactionReference);
-
   const token = await getMonnifyToken();
-
   const url = `${BASE_URL}/api/v2/transactions/${transactionReference}`;
-  console.log("🟣 [DEBUG] Verification URL:", url);
-
-  const response = await axios.get(url, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
+  const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
   console.log("🟣 [DEBUG] Verification raw response:", response.data);
-
   return response.data;
 }
 
@@ -159,113 +132,117 @@ async function verifyWithMonnify(transactionReference) {
 exports.redirectAfterPayment = async (req, res) => {
   try {
     console.log("🔵 [DEBUG] Redirect triggered:", req.query);
-
     const paymentReference = req.query.paymentReference;
-
     const payment = await Payment.findOne({ paymentReference });
 
     if (!payment) {
-      console.log("❌ [DEBUG] Payment not found in DB");
+      console.log("❌ [DEBUG] Payment not found");
       return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
     }
 
-    console.log("🔵 [DEBUG] Found payment in DB:", payment);
-
     const verifyData = await verifyWithMonnify(payment.transactionReference);
-
     const status = verifyData.responseBody?.paymentStatus;
     console.log("🔵 [DEBUG] Redirect verification status:", status);
 
     if (status === "PAID") {
-      payment.status = "paid";
+      payment.status = "successful";
       payment.amountPaid = verifyData.responseBody.amountPaid;
       await payment.save();
-
-      console.log("✅ [DEBUG] Payment marked as PAID, redirecting...");
+      console.log("✅ [DEBUG] Payment marked as successful");
       return res.redirect(`${process.env.FRONTEND_URL}/payment-success.html`);
     }
 
-    console.log("❌ [DEBUG] Payment NOT PAID, redirecting failure...");
+    console.log("❌ [DEBUG] Payment NOT PAID");
     return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
 
   } catch (err) {
-    console.error("❌ [DEBUG] Redirect ERROR:", err.response?.data || err.message);
+    console.error("❌ [DEBUG] redirectAfterPayment ERROR:", err.response?.data || err.message);
     return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
   }
 };
 
 /* ======================================================
-   WEBHOOK
+   MONNIFY WEBHOOK
 ====================================================== */
-exports.webhook = async (req, res) => {
+exports.monnifyWebhook = async (req, res) => {
   try {
-    console.log("📩 [DEBUG] Webhook incoming data:", req.body);
+    console.log("📩 [DEBUG] Webhook received");
 
-    const data = req.body;
-    const paymentReference = data.paymentReference;
-    const status = data.paymentStatus;
+    const rawBody = req.body;
+    const signatureHeader = req.headers["monnify-signature"];
+    if (!signatureHeader) return res.status(400).send("Missing signature");
 
-    const payment = await Payment.findOne({ paymentReference });
+    const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
+      .update(rawBody)
+      .digest("hex");
 
+    if (expectedSignature !== signatureHeader) return res.status(403).send("Invalid signature");
+
+    const event = JSON.parse(rawBody.toString("utf8"));
+    const eventData = event.eventData;
+    if (!eventData?.paymentReference) return res.status(400).send("Missing paymentReference");
+
+    const { paymentReference, paymentStatus, amountPaid, metaData } = eventData;
+    console.log("📩 [DEBUG] Webhook data:", { paymentReference, paymentStatus, amountPaid });
+
+    let payment = await Payment.findOne({ paymentReference });
     if (!payment) {
-      console.log("❌ [DEBUG] Webhook payment not found");
-      return res.status(404).send("Payment not found");
-    }
-
-    console.log("📩 [DEBUG] Webhook payment found:", payment);
-
-    if (status === "PAID") {
-      payment.status = "paid";
-      payment.amountPaid = data.amountPaid;
+      payment = await Payment.create({
+        paymentReference,
+        amountPaid: amountPaid || 0,
+        status: paymentStatus === "SUCCESSFUL" ? "successful" : "failed",
+        metaData: metaData || {}
+      });
+    } else {
+      payment.status = paymentStatus === "SUCCESSFUL" ? "successful" : "failed";
+      payment.amountPaid = amountPaid || payment.amountPaid;
       await payment.save();
-
-      const numbers = normalizeSelectedNumbers(payment.metaData.selectedNumbers);
-
-      console.log("📩 [DEBUG] Reserving numbers for user:", numbers);
-
-      await SelectedNumber.insertMany(
-        numbers.map(n => ({
-          number: n,
-          paymentReference,
-          event: payment.eventValue,
-          userEmail: payment.email
-        }))
-      );
     }
 
-    console.log("📩 [DEBUG] Webhook processed OK");
-    return res.status(200).send("OK");
+    if (payment.status === "successful" && metaData?.selectedNumbers) {
+      const numbers = Array.isArray(metaData.selectedNumbers)
+        ? metaData.selectedNumbers
+        : metaData.selectedNumbers.split(",").map(Number);
+
+      console.log("📩 [DEBUG] Reserving numbers:", numbers);
+
+      await SelectedNumber.insertMany(numbers.map(n => ({
+        number: n,
+        paymentReference,
+        event: metaData.event,
+        userEmail: metaData.playerEmail
+      })));
+    }
+
+    res.status(200).send("OK");
+    console.log("📩 [DEBUG] Webhook processed successfully");
 
   } catch (err) {
-    console.error("❌ [DEBUG] Webhook ERROR:", err.message);
+    console.error("❌ [DEBUG] monnifyWebhook ERROR:", err.stack || err.message);
     return res.status(500).send("Error");
   }
 };
 
 /* ======================================================
-   PUBLIC VERIFY ENDPOINT
+   VERIFY PAYMENT ENDPOINT
 ====================================================== */
 exports.verifyPayment = async (req, res) => {
   try {
     const { paymentReference } = req.params;
-
-    console.log("🟢 [DEBUG] Checking verifyPayment for:", paymentReference);
+    console.log("🟢 [DEBUG] verifyPayment for:", paymentReference);
 
     const payment = await Payment.findOne({ paymentReference });
-
     if (!payment) {
       console.log("❌ [DEBUG] Payment not found");
       return res.status(404).json({ message: "Not found" });
     }
 
     const verifyData = await verifyWithMonnify(payment.transactionReference);
-
-    console.log("🟢 [DEBUG] Final verify data:", verifyData);
+    console.log("🟢 [DEBUG] verifyPayment response:", verifyData);
 
     return res.json(verifyData);
-
   } catch (err) {
-    console.error("❌ [DEBUG] Verify endpoint ERROR:", err.response?.data || err.message);
+    console.error("❌ [DEBUG] verifyPayment ERROR:", err.response?.data || err.message);
     return res.status(500).json({ message: "Verify error" });
   }
 };
