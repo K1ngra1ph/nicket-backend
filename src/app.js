@@ -2,7 +2,6 @@ const cors = require("cors");
 const express = require("express");
 const paymentRoutes = require("./routes/paymentRoutes");
 const merchantRoutes = require("./routes/merchantRoutes");
-const webhookRoutes = require("./routes/webhook");
 const numberRoutes = require("./routes/numbers");
 
 const app = express();
@@ -15,11 +14,12 @@ app.use(cors({
 }));
 app.options("*", cors());
 
-app.use("/api/webhook", express.raw({ type: "application/json" }), webhookRoutes);
+app.use("/api/payments/monnify-webhook", express.raw({ type: "*/*" }));
 
 app.use(express.json());
-app.use("/api/numbers", numberRoutes);
+
 app.use("/api/payments", paymentRoutes);
+app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 
 app.get("/", (req, res) => res.send("🔥 Nicket Backend running with MongoDB!"));
