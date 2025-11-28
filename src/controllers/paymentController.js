@@ -69,7 +69,10 @@ exports.initiatePayment = async (req, res) => {
 
     let monnifyResponse;
     try {
-      monnifyResponse = await axios.post({
+      monnifyResponse = await axios.post(
+        monnifyUrl,
+        payload,
+        {
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         timeout: 10000
       });
