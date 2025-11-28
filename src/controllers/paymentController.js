@@ -202,7 +202,9 @@ exports.redirectAfterPayment = async (req, res) => {
           `${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`
         );
       }
-    } catch {}
+    } catch (err) {
+      consle.error("❌ Redirect verification failed:", err.message);
+    }
 
     return res.redirect(
       `${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`

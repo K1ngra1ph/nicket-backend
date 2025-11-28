@@ -14,10 +14,10 @@ app.use(cors({
   methods: "GET,POST,OPTIONS",
   allowedHeaders: "Content-Type,Authorization"
 }));
-
 app.options("*", cors());
 
-app.use("/api/webhook", webhookRoutes);
+app.use("/api/webhook", express.raw({ type: "application/json" }), webhookRoutes);
+
 app.use(express.json());
 app.use("/api/numbers", numberRoutes);
 app.use("/api/users", userRoutes);

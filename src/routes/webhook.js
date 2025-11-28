@@ -1,4 +1,3 @@
-// src/routes/webhook.js
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
@@ -6,15 +5,13 @@ const Payment = require("../models/Payment");
 const NumberCount = require("../models/NumberCount");
 const sendWinnerEmail = require("../utils/sendWinnerEmail");
 
-// POST /api/webhook/monnify
-router.post("/monnify", express.raw({ type: "*/*" }), async (req, res) => {
+router.post("/monnify", async (req, res) => {
   try {
     const rawBody = req.body;
     const signatureHeader = req.headers["monnify-signature"];
 
     if (!signatureHeader) return res.status(400).send("Missing signature");
 
-    // Validate HMAC SHA512 signature
     const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
@@ -28,7 +25,6 @@ router.post("/monnify", express.raw({ type: "*/*" }), async (req, res) => {
 
     const { paymentReference, paymentStatus, amountPaid, metaData } = eventData;
 
-    // Update or create payment record
     let payment = await Payment.findOne({ paymentReference });
     if (!payment) {
       payment = await Payment.create({
@@ -43,7 +39,6 @@ router.post("/monnify", express.raw({ type: "*/*" }), async (req, res) => {
       await payment.save();
     }
 
-    // Handle selected numbers if payment is successful
     if (paymentStatus === "SUCCESSFUL" && metaData?.selectedNumbers) {
       const selectedNumbers = Array.isArray(metaData.selectedNumbers)
         ? metaData.selectedNumbers
