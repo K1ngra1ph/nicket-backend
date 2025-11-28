@@ -63,18 +63,25 @@ exports.initiatePayment = async (req, res) => {
       }
     };
 
-    const monnifyResponse = await axios.post(
-      `${process.env.MONNIFY_MODE === "LIVE" ? "https://api.monnify.com" : "https://sandbox.monnify.com"}/api/v1/merchant/transactions/init-transaction`,
-      payload,
-      {
+    const monnifyUrl = process.env.MONNIFY_MODE === "LIVE"
+     ? "https://api.monnify.com/api/v1/merchant/transactions/init-transaction"
+     :  "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction";
+
+    let monnifyResponse;
+    try {
+      monnifyResponse = await axios.post({
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         timeout: 10000
-      }
-    );
+      });
+    } catch (err) {
+      const msg = err.response?.data || err.message;
+      console.error("Monnify init failed:", msg);
+      return res.status(err.response?.status || 502).json({ message: "Monnify init failed", error: msg });
+    }
 
     if (!monnifyResponse?.data?.requestSuccessful) {
       const msg = monnifyResponse?.data?.responseMessage || "Monnify init failed";
-      console.error("Monnify init error:", monnifyResponse?.data);
+      console.error("Monnify init error:", monnifyResponse.data);
       return res.status(502).json({ message: msg });
     }
 
