@@ -7,6 +7,7 @@ const sendWinnerEmail = require("../utils/sendWinnerEmail");
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://nicket-lilac.vercel.app";
 const BACKEND_URL = process.env.BACKEND_URL || process.env.BASE_BACKEND_URL || "https://nicket-backend.onrender.com";
+const MONNIFY_MODE = process.env.MONNIFY_MODE || "SANDBOX";
 
 function normalizeStatus(raw) {
   if (!raw) return "unknown";
@@ -16,9 +17,11 @@ function normalizeStatus(raw) {
   return s;
 }
 
+// -------------------- Initiate Payment --------------------
 exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
+
     if (!name || !email || !phone || !amount || !Array.isArray(selectedNumbers) || selectedNumbers.length === 0) {
       console.error("❌ Missing required fields or selected numbers", req.body);
       return res.status(400).json({ message: "Missing required fields or selected numbers" });
@@ -36,6 +39,7 @@ exports.initiatePayment = async (req, res) => {
       return res.status(400).json({ message: "Invalid selected numbers" });
     }
 
+    // Check max selection per number
     for (const num of numbersToSend) {
       const record = await NumberCount.findOne({ eventValue, number: num });
       if (record && record.count >= (record.maxCount || 10)) {
@@ -47,10 +51,6 @@ exports.initiatePayment = async (req, res) => {
     if (!process.env.MONNIFY_CONTRACT_CODE) {
       console.error("❌ MONNIFY_CONTRACT_CODE not set in environment");
       return res.status(500).json({ message: "Server misconfiguration: contract code missing" });
-    }
-    if (!BACKEND_URL) {
-      console.error("❌ BACKEND_URL not set in environment");
-      return res.status(500).json({ message: "Server misconfiguration: backend URL missing" });
     }
 
     const paymentReference = `NICKET-${Date.now()}`;
@@ -69,12 +69,13 @@ exports.initiatePayment = async (req, res) => {
         event: eventValue,
         playerName: name,
         playerEmail: email,
-        selectedNumbers: numbersToSend.join(","),
+        selectedNumbers: numbersToSend // store as array in DB, send as-is
       }
     };
 
     console.log("💳 Monnify payload:", JSON.stringify(payload, null, 2));
-    const monnifyUrl = process.env.MONNIFY_MODE === "LIVE"
+
+    const monnifyUrl = MONNIFY_MODE === "LIVE"
       ? "https://api.monnify.com/api/v1/merchant/transactions/init-transaction"
       : "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction";
 
@@ -125,21 +126,18 @@ exports.initiatePayment = async (req, res) => {
   }
 };
 
+// -------------------- Verify Payment --------------------
 exports.verifyPayment = async (req, res) => {
   try {
     const reference = req.query.reference || req.body.paymentReference;
-    if (!reference) {
-      return res.status(400).json({ success: false, message: "Missing payment reference" });
-    }
+    if (!reference) return res.status(400).json({ success: false, message: "Missing payment reference" });
 
     let payment = await Payment.findOne({ paymentReference: reference });
-    if (!payment) {
-      return res.status(404).json({ success: false, message: "Payment not found" });
-    }
+    if (!payment) return res.status(404).json({ success: false, message: "Payment not found" });
 
     try {
       const token = await getMonnifyToken();
-      const base = process.env.MONNIFY_MODE === "LIVE" ? "https://api.monnify.com" : "https://sandbox.monnify.com";
+      const base = MONNIFY_MODE === "LIVE" ? "https://api.monnify.com" : "https://sandbox.monnify.com";
       const monnifyRes = await axios.get(
         `${base}/api/v2/transactions/${reference}`,
         { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
@@ -150,6 +148,7 @@ exports.verifyPayment = async (req, res) => {
         const normalized = normalizeStatus(txn.paymentStatus);
         payment.status = normalized;
         payment.amountPaid = txn.amountPaid || payment.amountPaid;
+
         if (txn.metaData) payment.metaData = { ...payment.metaData, ...txn.metaData };
         await payment.save();
       }
@@ -159,66 +158,69 @@ exports.verifyPayment = async (req, res) => {
 
     const isSuccess = normalizeStatus(payment.status) === "success";
 
-    return res.json({
-      success: isSuccess,
-      status: payment.status,
-      data: payment
-    });
+    return res.json({ success: isSuccess, status: payment.status, data: payment });
   } catch (err) {
     console.error("❌ Payment verification error:", err.stack || err.message);
     return res.status(500).json({ success: false, message: "Internal error verifying payment" });
   }
 };
 
+// -------------------- Internal Payment Verification --------------------
+async function payment_verify(reference) {
+  if (!reference) throw new Error("Missing reference");
+
+  const baseUrl = MONNIFY_MODE === "LIVE"
+    ? "https://api.monnify.com/api/v2/transactions/verify"
+    : "https://sandbox.monnify.com/api/v2/transactions/verify";
+
+  const token = await getMonnifyToken();
+  const res = await axios.get(`${baseUrl}/${encodeURIComponent(reference)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 10000
+  });
+
+  return res.data;
+}
+
+// -------------------- Redirect After Payment --------------------
 exports.redirectAfterPayment = async (req, res) => {
   try {
     const paymentReference = req.query.paymentReference;
-
-    if (!paymentReference) {
-      return res.redirect(`${FRONTEND_URL}/game.html?failed=true`);
-    }
+    if (!paymentReference) return res.redirect(`${FRONTEND_URL}/game.html?failed=true`);
 
     let payment = await Payment.findOne({ paymentReference });
-
     if (!payment) {
-      return res.redirect(
-        `${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`
-      );
+      return res.redirect(`${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`);
     }
 
     const status = normalizeStatus(payment.status);
     if (status === "success") {
-      return res.redirect(
-        `${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`
-      );
+      return res.redirect(`${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`);
     }
 
     try {
-      const verifyUrl = `${BACKEND_URL}/api/payments/verify-payment?reference=${encodeURIComponent(paymentReference)}`;
-      const verify = await axios.get(verifyUrl, { timeout: 8000 });
+      const verify = await payment_verify(paymentReference);
+      if (verify?.requestSuccessful && normalizeStatus(verify?.responseBody?.paymentStatus) === "success") {
+        payment.status = "success";
+        await payment.save();
 
-      if (verify?.data?.success === true) {
-        return res.redirect(
-          `${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`
-        );
+        return res.redirect(`${FRONTEND_URL}/index.html?paymentReference=${encodeURIComponent(paymentReference)}`);
       }
     } catch (err) {
-      consle.error("❌ Redirect verification failed:", err.message);
+      console.error("❌ Redirect verification failed:", err.message);
     }
 
-    return res.redirect(
-      `${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`
-    );
+    return res.redirect(`${FRONTEND_URL}/game.html?failed=true&paymentReference=${encodeURIComponent(paymentReference)}`);
   } catch (err) {
     return res.redirect(`${FRONTEND_URL}/game.html?failed=true`);
   }
 };
 
+// -------------------- Monnify Webhook --------------------
 exports.monnifyWebhook = async (req, res) => {
   try {
     const rawBody = req.body;
     const signatureHeader = req.headers["monnify-signature"];
-
     if (!signatureHeader) return res.status(400).send("Missing signature");
 
     const expectedSignature = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
@@ -229,11 +231,10 @@ exports.monnifyWebhook = async (req, res) => {
 
     const event = JSON.parse(rawBody.toString("utf8"));
     const eventData = event.eventData;
-
     if (!eventData || !eventData.paymentReference) return res.status(400).send("Missing paymentReference");
 
     const { paymentReference, paymentStatus, amountPaid, metaData, paymentMethod } = eventData;
-    const status = (paymentStatus || "").toString().toUpperCase();
+    const status = (paymentStatus || "").toUpperCase();
 
     let payment = await Payment.findOne({ paymentReference });
     if (!payment) {
