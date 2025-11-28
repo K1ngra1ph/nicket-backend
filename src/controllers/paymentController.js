@@ -19,31 +19,41 @@ function normalizeStatus(raw) {
 exports.initiatePayment = async (req, res) => {
   try {
     const { name, email, phone, amount, eventValue, selectedNumbers } = req.body;
-
     if (!name || !email || !phone || !amount || !Array.isArray(selectedNumbers) || selectedNumbers.length === 0) {
+      console.error("❌ Missing required fields or selected numbers", req.body);
       return res.status(400).json({ message: "Missing required fields or selected numbers" });
     }
 
     const amountInNaira = Number(amount);
     if (Number.isNaN(amountInNaira) || amountInNaira <= 0) {
+      console.error("❌ Invalid amount:", amount);
       return res.status(400).json({ message: "Invalid amount" });
     }
 
     const numbersToSend = selectedNumbers.map(n => Number(n));
     if (!numbersToSend.every(n => Number.isInteger(n) && n > 0)) {
+      console.error("❌ Invalid selected numbers:", selectedNumbers);
       return res.status(400).json({ message: "Invalid selected numbers" });
     }
 
-    for (const num of selectedNumbers) {
+    for (const num of numbersToSend) {
       const record = await NumberCount.findOne({ eventValue, number: num });
       if (record && record.count >= (record.maxCount || 10)) {
+        console.error(`❌ Number ${num} has reached maximum selection limit`);
         return res.status(400).json({ message: `Number ${num} has reached maximum selection limit` });
       }
     }
 
-    const accessToken = await getMonnifyToken();
-    const paymentReference = `NICKET-${Date.now()}`;
+    if (!process.env.MONNIFY_CONTRACT_CODE) {
+      console.error("❌ MONNIFY_CONTRACT_CODE not set in environment");
+      return res.status(500).json({ message: "Server misconfiguration: contract code missing" });
+    }
+    if (!BACKEND_URL) {
+      console.error("❌ BACKEND_URL not set in environment");
+      return res.status(500).json({ message: "Server misconfiguration: backend URL missing" });
+    }
 
+    const paymentReference = `NICKET-${Date.now()}`;
     const payload = {
       amount: amountInNaira,
       customerName: name,
@@ -63,43 +73,47 @@ exports.initiatePayment = async (req, res) => {
       }
     };
 
+    console.log("💳 Monnify payload:", JSON.stringify(payload, null, 2));
     const monnifyUrl = process.env.MONNIFY_MODE === "LIVE"
-     ? "https://api.monnify.com/api/v1/merchant/transactions/init-transaction"
-     :  "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction";
+      ? "https://api.monnify.com/api/v1/merchant/transactions/init-transaction"
+      : "https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction";
 
     let monnifyResponse;
     try {
-      monnifyResponse = await axios.post(
-        monnifyUrl,
-        payload,
-        {
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      monnifyResponse = await axios.post(monnifyUrl, payload, {
+        headers: {
+          Authorization: `Bearer ${await getMonnifyToken()}`,
+          "Content-Type": "application/json"
+        },
         timeout: 10000
       });
     } catch (err) {
       const msg = err.response?.data || err.message;
-      console.error("Monnify init failed:", msg);
+      console.error("❌ Monnify init failed:", msg);
       return res.status(err.response?.status || 502).json({ message: "Monnify init failed", error: msg });
     }
 
     if (!monnifyResponse?.data?.requestSuccessful) {
-      const msg = monnifyResponse?.data?.responseMessage || "Monnify init failed";
-      console.error("Monnify init error:", monnifyResponse.data);
-      return res.status(502).json({ message: msg });
+      console.error("❌ Monnify init error:", monnifyResponse.data);
+      return res.status(502).json({
+        message: monnifyResponse?.data?.responseMessage || "Monnify init failed",
+        error: monnifyResponse?.data
+      });
     }
 
-    await Payment.create({
+    const paymentDoc = await Payment.create({
       paymentReference,
       amount: amountInNaira,
       eventValue,
-      selectedNumbers,
+      selectedNumbers: numbersToSend,
       name,
       email,
       phone,
       status: "pending",
       metaData: payload.metaData
     });
-    
+
+    console.log("✅ Payment record created:", paymentDoc.paymentReference);
     return res.json({
       paymentReference,
       checkoutUrl: monnifyResponse.data.responseBody.checkoutUrl
