@@ -1,6 +1,5 @@
 const cors = require("cors");
 const express = require("express");
-const userRoutes = require("./routes/userRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const merchantRoutes = require("./routes/merchantRoutes");
 const webhookRoutes = require("./routes/webhook");
@@ -20,7 +19,6 @@ app.use("/api/webhook", express.raw({ type: "application/json" }), webhookRoutes
 
 app.use(express.json());
 app.use("/api/numbers", numberRoutes);
-app.use("/api/users", userRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/merchant", merchantRoutes);
 
