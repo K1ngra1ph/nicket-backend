@@ -1,33 +1,28 @@
+// controllers/payment/redirectAfterPayment.js
 const Payment = require("../../models/Payment");
-const verifyWithMonnify = require("./verifyWithMonnify");
 
 module.exports = async function redirectAfterPayment(req, res) {
   try {
     const { paymentReference } = req.query;
     console.log("🔵 [DEBUG] Redirect triggered:", paymentReference);
 
+    // Find the payment record in DB
     const payment = await Payment.findOne({ paymentReference });
 
     if (!payment) {
-      return res.redirect(`${process.env.FRONTEND_URL}/index.html`);
+      console.warn("⚠️ Payment not found, redirecting to failure page");
+      // Redirect to bridge with failed flag
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-verify.html?failed=true`);
     }
 
-    const verify = await verifyWithMonnify(payment.transactionReference);
-    const status = verify.responseBody?.paymentStatus;
-
-    console.log("🔵 [DEBUG] Redirect verification status:", status);
-
-    if (status === "PAID") {
-      payment.status = "successful";
-      payment.amountPaid = verify.responseBody.amountPaid;
-      await payment.save();
-      return res.redirect(`${process.env.FRONTEND_URL}/index.html`);
-    }
-
-    return res.redirect(`${process.env.FRONTEND_URL}/game.html`);
+    // Payment exists → redirect to bridge page with transactionReference
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/payment-verify.html?transactionReference=${encodeURIComponent(payment.transactionReference)}`
+    );
 
   } catch (err) {
     console.error("❌ [DEBUG] redirectAfterPayment ERROR:", err.message);
-    return res.redirect(`${process.env.FRONTEND_URL}/game.html`);
+    // On error, redirect to bridge page with failed flag
+    return res.redirect(`${process.env.FRONTEND_URL}/payment-verify.html?failed=true`);
   }
 };
