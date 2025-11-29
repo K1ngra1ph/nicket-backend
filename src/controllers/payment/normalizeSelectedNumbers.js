@@ -1,4 +1,3 @@
-// controllers/payment/normalizeSelectedNumbers.js
 module.exports = function normalizeSelectedNumbers(value) {
   console.log("🟦 [DEBUG] Raw selectedNumbers received:", value);
 

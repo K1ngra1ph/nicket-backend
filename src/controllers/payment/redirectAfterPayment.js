@@ -1,4 +1,3 @@
-// controllers/payment/redirectAfterPayment.js
 const Payment = require("../../models/Payment");
 const verifyWithMonnify = require("./verifyWithMonnify");
 
@@ -10,7 +9,7 @@ module.exports = async function redirectAfterPayment(req, res) {
     const payment = await Payment.findOne({ paymentReference });
 
     if (!payment) {
-      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+      return res.redirect(`${process.env.FRONTEND_URL}/index.html`);
     }
 
     const verify = await verifyWithMonnify(payment.transactionReference);
@@ -22,13 +21,13 @@ module.exports = async function redirectAfterPayment(req, res) {
       payment.status = "successful";
       payment.amountPaid = verify.responseBody.amountPaid;
       await payment.save();
-      return res.redirect(`${process.env.FRONTEND_URL}/payment-success.html`);
+      return res.redirect(`${process.env.FRONTEND_URL}/index.html`);
     }
 
-    return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+    return res.redirect(`${process.env.FRONTEND_URL}/game.html`);
 
   } catch (err) {
     console.error("❌ [DEBUG] redirectAfterPayment ERROR:", err.message);
-    return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+    return res.redirect(`${process.env.FRONTEND_URL}/game.html`);
   }
 };

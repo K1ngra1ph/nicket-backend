@@ -6,7 +6,7 @@ const numberCountSchema = new mongoose.Schema(
     eventValue: { type: String, required: true, index: true },
     number: { type: Number, required: true },
     count: { type: Number, default: 0 },
-    maxCount: { type: Number, default: 10 } // max allowed per number
+    maxCount: { type: Number, default: 10 }
   },
   { timestamps: true }
 );
