@@ -31,7 +31,7 @@ module.exports = async function verifyPayment(req, res) {
 
     console.log("🔍 Monnify verify result:", result);
 
-    // Protect against no-response scenarios
+    // No response protection
     if (!result) {
       return res.status(500).json({
         success: false,
@@ -40,7 +40,7 @@ module.exports = async function verifyPayment(req, res) {
       });
     }
 
-    // If Monnify returned 400 → transaction exists but not paid yet
+    // Not paid yet (Monnify pending)
     if (!result.ok) {
       return res.json({
         success: true,
@@ -54,16 +54,25 @@ module.exports = async function verifyPayment(req, res) {
     }
 
     const { responseBody } = result;
+    const paymentStatus = responseBody?.paymentStatus || "UNKNOWN";
 
+    // 🎉 SEND EMAIL AFTER SUCCESSFUL PAYMENT
+    if (paymentStatus === "PAID" || paymentStatus === "SUCCESSFUL") {
+      console.log("📨 Verified successful payment — sending email...");
+      await sendEmail(payment);   // <── THIS IS THE CORRECT PLACE
+    }
+
+    // Respond back to frontend
     return res.json({
       success: true,
       verified: true,
-      paymentStatus: responseBody?.paymentStatus || "UNKNOWN",
+      paymentStatus,
       amountPaid: responseBody?.amountPaid,
       paymentReference,
       transactionReference: payment.transactionReference,
       raw: result
     });
+
   } catch (err) {
     console.error("❌ Unexpected verifyPayment error:", err);
 
