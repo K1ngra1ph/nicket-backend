@@ -1,5 +1,3 @@
-// controllers/payment/verifyWithMonnify.js
-
 const axios = require("axios");
 const { getMonnifyToken } = require("../../services/monnifyService");
 
