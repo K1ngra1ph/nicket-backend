@@ -1,47 +1,76 @@
 // controllers/payment/verifyPayment.js
+
 const Payment = require("../../models/Payment");
 const verifyWithMonnify = require("./verifyWithMonnify");
 
 module.exports = async function verifyPayment(req, res) {
-  console.log("🔍 Debug: Incoming params:", req.params);
+  console.log("🔍 Incoming verify request:", req.params);
 
   try {
     const { paymentReference } = req.params;
 
-    console.log("🔍 Debug: Extracted paymentReference:", paymentReference);
-
-    const payment = await Payment.findOne({ paymentReference }).catch(err => {
-      console.error("❌ Debug: Error querying Payment:", err);
-      return null;
-    });
-
-    console.log("🔍 Debug: Payment query result:", payment);
-
-    if (!payment) {
-      console.log("⚠️ Debug: Payment not found for:", paymentReference);
-      return res.status(404).json({ success: false, message: "Payment not found" });
+    if (!paymentReference) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing paymentReference"
+      });
     }
 
-    console.log("🔍 Debug: Verifying with Monnify using transactionReference:", payment.transactionReference);
+    const payment = await Payment.findOne({ paymentReference });
 
-    const result = await verifyWithMonnify(payment.transactionReference).catch(err => {
-      console.error("❌ Debug: Error in verifyWithMonnify:", err);
-      return null;
-    });
+    console.log("🔍 Payment DB lookup:", payment);
 
-    console.log("🔍 Debug: Monnify verification result:", result);
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found"
+      });
+    }
+
+    // --- Verify with Monnify ---
+    const result = await verifyWithMonnify(payment.transactionReference);
+
+    console.log("🔍 Monnify verify result:", result);
+
+    // Protect against no-response scenarios
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        message: "Verification failed",
+        status: "UNKNOWN"
+      });
+    }
+
+    // If Monnify returned 400 → transaction exists but not paid yet
+    if (!result.ok) {
+      return res.json({
+        success: true,
+        verified: false,
+        paymentStatus: "PENDING",
+        paymentReference,
+        transactionReference: payment.transactionReference,
+        monnifyStatus: result.status,
+        monnifyMessage: result.message
+      });
+    }
+
+    const { responseBody } = result;
 
     return res.json({
-      success: result?.requestSuccessful,
-      paymentStatus: result?.responseBody?.paymentStatus,
-      amountPaid: result?.responseBody?.amountPaid,
+      success: true,
+      verified: true,
+      paymentStatus: responseBody?.paymentStatus || "UNKNOWN",
+      amountPaid: responseBody?.amountPaid,
       paymentReference,
       transactionReference: payment.transactionReference,
       raw: result
     });
-
   } catch (err) {
-    console.error("❌ Debug: Unexpected error:", err);
-    return res.status(500).json({ success: false, message: "Verify error" });
+    console.error("❌ Unexpected verifyPayment error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Verify error"
+    });
   }
 };
