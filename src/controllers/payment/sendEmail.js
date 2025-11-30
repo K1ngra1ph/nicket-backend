@@ -1,7 +1,9 @@
 const axios = require("axios");
 
-// ENVIRONMENT VARIABLES (define in Render)
-const EMAIL_SERVICE_URL = process.env.EMAIL_SERVICE_URL || "https://nicket-email-service.vercel.app/api/send-email";
+const EMAIL_SERVICE_URL =
+  process.env.EMAIL_SERVICE_URL ||
+  "https://nicket-email-service.vercel.app/api/send-email";
+
 const BACKEND_SECRET = process.env.BACKEND_SECRET;
 
 module.exports = async function sendEmail(payment) {
@@ -11,13 +13,24 @@ module.exports = async function sendEmail(payment) {
       return null;
     }
 
+    const selectedNumbers = Array.isArray(payment.selectedNumbers)
+      ? payment.selectedNumbers
+      : payment.selectedNumbers
+        ? [payment.selectedNumbers]
+        : [];
+
     const payload = {
-      name: payment.name,
+      name: payment.name || payment.fullName || "Nicket User",
       email: payment.email,
       phone: payment.phone,
-      eventValue: payment.eventValue,
-      selectedNumbers: payment.selectedNumbers,
-      totalValue: payment.totalValue
+      eventValue: payment.event || payment.eventValue,
+      selectedNumbers,
+      totalValue:
+        payment.totalValue ||
+        payment.amount ||
+        payment.amountPaid ||
+        0,
+      paymentReference: payment.paymentReference
     };
 
     console.log("📨 Sending email payload to Vercel:", payload);
