@@ -5,16 +5,22 @@ const verifyWithMonnify = require("./verifyWithMonnify");
 module.exports = async function verifyPayment(req, res) {
   try {
     const { paymentReference } = req.params;
-    console.log("🟢 [DEBUG] verifyPayment for:", paymentReference);
 
     const payment = await Payment.findOne({ paymentReference });
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
+    if (!payment) return res.status(404).json({ success: false, message: "Payment not found" });
 
     const result = await verifyWithMonnify(payment.transactionReference);
-    return res.json(result);
+
+    return res.json({
+      success: result.requestSuccessful,
+      paymentStatus: result.responseBody?.paymentStatus,
+      amountPaid: result.responseBody?.amountPaid,
+      paymentReference,
+      transactionReference: payment.transactionReference,
+      raw: result
+    });
 
   } catch (err) {
-    console.error("❌ [DEBUG] verifyPayment ERROR:", err.message);
-    return res.status(500).json({ message: "Verify error" });
+    return res.status(500).json({ success: false, message: "Verify error" });
   }
 };
