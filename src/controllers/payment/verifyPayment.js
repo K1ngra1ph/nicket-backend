@@ -1,5 +1,3 @@
-// controllers/payment/verifyPayment.js
-
 const Payment = require("../../models/Payment");
 const verifyWithMonnify = require("./verifyWithMonnify");
 
