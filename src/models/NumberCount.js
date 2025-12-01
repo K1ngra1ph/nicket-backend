@@ -1,5 +1,4 @@
-// src/models/NumberCount.js
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const numberCountSchema = new mongoose.Schema(
   {
@@ -12,21 +11,19 @@ const numberCountSchema = new mongoose.Schema(
 );
 
 numberCountSchema.index({ eventValue: 1, number: 1 }, { unique: true });
-
-// Increment safely
-numberCountSchema.statics.incrementCount = async function(eventValue, number) {
-  const doc = await this.findOneAndUpdate(
+numberCountSchema.statics.incrementCount = async function (eventValue, number) {
+  return await this.findOneAndUpdate(
     { eventValue, number, count: { $lt: 10 } },
     { $inc: { count: 1 }, $setOnInsert: { maxCount: 10 } },
     { new: true, upsert: true }
   );
-  return doc;
 };
 
-// Check availability
-numberCountSchema.statics.isAvailable = async function(eventValue, number) {
+numberCountSchema.statics.isAvailable = async function (eventValue, number) {
   const doc = await this.findOne({ eventValue, number });
   return !doc || doc.count < (doc.maxCount || 10);
 };
 
-module.exports = mongoose.model("NumberCount", numberCountSchema);
+const NumberCount = mongoose.model("NumberCount", numberCountSchema);
+
+export default NumberCount;
