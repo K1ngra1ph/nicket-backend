@@ -11,12 +11,30 @@ export async function createAdminPanel(app) {
   const admin = new AdminJS({
     rootPath: "/admin",
     resources: [
-      { resource: User },
-      { resource: Payment }
+      { resource: User 
+        options: {
+          listProperties: ["name", "email", "phone", "eventValue", "createdAt"],
+          filterProperties: ["name", "email", "eventValue", "phone"],
+          editProperties: ["name", "email", "phone", "eventValue"],
+          showProperties: ["_id", "name", "email", "phone", "eventValue", "createdAt", "updatedAt"]
+        }
+      },
+      { resource: Payment
+        options: {
+          listProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumbers", "eventValue", "createdAt"],
+          filterProperties: ["paymentReference", "transactionReference", "status", "eventValue"],
+          showProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumbers", "eventValue"],
+          editProperties: ["status"],
+          actions: {
+            new: { isAccessible: false },
+            edit: { isAccessible: false }
+          }
+        }
+       }
     ],
     branding: {
-      companyName: "Nicket Admin Panel",
-      logo: false,
+      companyName: "Nicket",
+      logo: true,
       favicon: "/favicon.ico",
       theme: {
         colors: {
