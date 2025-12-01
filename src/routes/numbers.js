@@ -1,6 +1,7 @@
-const express = require("express");
+import express from "express";
+import Payment from "../models/Payment.js";
+
 const router = express.Router();
-const Payment = require("../models/Payment");
 
 router.get("/availability", async (req, res) => {
   try {
@@ -30,4 +31,4 @@ router.get("/availability", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

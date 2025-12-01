@@ -1,5 +1,4 @@
-// src/utils/sendWinnerEmail.js
-const axios = require("axios");
+import axios from "axios";
 
 /**
  * Sends a winner email via your Vercel email service.
@@ -10,7 +9,7 @@ const axios = require("axios");
  * @param {string} event - Event name
  * @returns {Promise<boolean>}
  */
-async function sendWinnerEmail(email, name, numbers, event) {
+export default async function sendWinnerEmail(email, name, numbers, event) {
   if (!email || !name || !numbers || !event) {
     throw new Error("[sendWinnerEmail] Missing required parameters");
   }
@@ -28,16 +27,20 @@ async function sendWinnerEmail(email, name, numbers, event) {
     );
 
     if (response.status !== 200 || response.data?.success !== true) {
-      console.error(`[sendWinnerEmail] Failed to send email to ${email}`, response.data || `Status ${response.status}`);
+      console.error(
+        `[sendWinnerEmail] Failed to send email to ${email}`,
+        response.data || `Status ${response.status}`
+      );
       throw new Error("Email service responded with an error");
     }
 
     console.log(`[sendWinnerEmail] Winner email sent to ${email} for event "${event}"`);
     return true;
   } catch (err) {
-    console.error(`[sendWinnerEmail] Error sending winner email to ${email}:`, err.response?.data || err.message || err);
+    console.error(
+      `[sendWinnerEmail] Error sending winner email to ${email}:`,
+      err.response?.data || err.message || err
+    );
     throw err;
   }
 }
-
-module.exports = sendWinnerEmail;

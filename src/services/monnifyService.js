@@ -1,4 +1,4 @@
-const axios = require("axios");
+import axios from "axios";
 
 const BASE_URL =
   process.env.MONNIFY_MODE?.toUpperCase() === "LIVE"
@@ -11,7 +11,7 @@ const BASE_URL =
  *
  * @returns {Promise<string>} Access Token
  */
-exports.getMonnifyToken = async () => {
+export const getMonnifyToken = async () => {
   try {
     if (!process.env.MONNIFY_API_KEY || !process.env.MONNIFY_SECRET_KEY) {
       throw new Error("Monnify API key or secret key not set in environment");

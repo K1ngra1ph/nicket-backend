@@ -1,17 +1,22 @@
-const express = require("express");
-const router = express.Router();
+import express from "express";
 
-const initiatePayment = require("../controllers/payment/initiatePayment");
-const verifyPayment = require("../controllers/payment/verifyPayment");
-const redirectAfterPayment = require("../controllers/payment/redirectAfterPayment");
-const getPaymentReference = require("../controllers/payment/getPaymentReference");
-const monnifyWebhook = require("../controllers/payment/monnifyWebhook");
+import initiatePayment from "../controllers/payment/initiatePayment.js";
+import verifyPayment from "../controllers/payment/verifyPayment.js";
+import redirectAfterPayment from "../controllers/payment/redirectAfterPayment.js";
+import getPaymentReference from "../controllers/payment/getPaymentReference.js";
+import monnifyWebhook from "../controllers/payment/monnifyWebhook.js";
+
+const router = express.Router();
 
 router.post("/initiate-payment", initiatePayment);
 router.get("/verify/:paymentReference", verifyPayment);
 router.get("/redirect", redirectAfterPayment);
 router.get("/get-payment-reference", getPaymentReference);
 
-router.post("/monnify-webhook", express.raw({ type: "*/*" }), monnifyWebhook );
+router.post(
+  "/monnify-webhook",
+  express.raw({ type: "*/*" }),
+  monnifyWebhook
+);
 
-module.exports = router;
+export default router;

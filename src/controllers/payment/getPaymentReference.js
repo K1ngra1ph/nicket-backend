@@ -1,6 +1,6 @@
-const Payment = require("../../models/Payment");
+import Payment from "../../models/Payment.js";
 
-module.exports = async function getPaymentReference(req, res) {
+export default async function getPaymentReference(req, res) {
   console.log("🔍 Debug: Incoming query params:", req.query);
 
   const { transactionReference } = req.query;
@@ -22,4 +22,4 @@ module.exports = async function getPaymentReference(req, res) {
   console.log("✅ Debug: Returning paymentReference:", payment.paymentReference);
 
   return res.json({ paymentReference: payment.paymentReference });
-};
+}

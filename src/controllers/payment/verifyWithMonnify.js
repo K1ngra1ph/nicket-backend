@@ -1,12 +1,12 @@
-const axios = require("axios");
-const { getMonnifyToken } = require("../../services/monnifyService");
+import axios from "axios";
+import { getMonnifyToken } from "../../services/monnifyService.js";
 
 const BASE_URL =
   process.env.MONNIFY_MODE?.toUpperCase() === "LIVE"
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
-module.exports = async function verifyWithMonnify(transactionReference) {
+export default async function verifyWithMonnify(transactionReference) {
   console.log("🟣 [DEBUG] Verifying transaction:", transactionReference);
 
   try {
@@ -27,7 +27,6 @@ module.exports = async function verifyWithMonnify(transactionReference) {
       ...response.data
     };
   } catch (err) {
-    // Monnify returns 400 if transaction not found or not paid yet
     const status = err.response?.status || 500;
     const data = err.response?.data || null;
 
@@ -43,4 +42,4 @@ module.exports = async function verifyWithMonnify(transactionReference) {
           : "Verification failed"
     };
   }
-};
+}

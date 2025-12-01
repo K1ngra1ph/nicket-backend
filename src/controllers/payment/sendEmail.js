@@ -1,4 +1,4 @@
-const axios = require("axios");
+import axios from "axios";
 
 const EMAIL_SERVICE_URL =
   process.env.EMAIL_SERVICE_URL ||
@@ -6,7 +6,7 @@ const EMAIL_SERVICE_URL =
 
 const BACKEND_SECRET = process.env.BACKEND_SECRET;
 
-module.exports = async function sendEmail(payment) {
+export default async function sendEmail(payment) {
   try {
     if (!BACKEND_SECRET) {
       console.error("❌ Missing BACKEND_SECRET env variable!");
@@ -53,4 +53,4 @@ module.exports = async function sendEmail(payment) {
     console.error("❌ Email sending failed:", err.response?.data || err.message);
     return null;
   }
-};
+}

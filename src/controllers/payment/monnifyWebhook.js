@@ -1,9 +1,8 @@
-// controllers/payment/monnifyWebhook.js
-const crypto = require("crypto");
-const Payment = require("../../models/Payment");
-const SelectedNumber = require("../../models/SelectedNumber");
+import crypto from "crypto";
+import Payment from "../../models/Payment.js";
+import SelectedNumber from "../../models/SelectedNumber.js";
 
-module.exports = async function monnifyWebhook(req, res) {
+export default async function monnifyWebhook(req, res) {
   try {
     console.log("📩 [DEBUG] Webhook received");
 
@@ -12,7 +11,8 @@ module.exports = async function monnifyWebhook(req, res) {
 
     if (!signature) return res.status(400).send("Missing signature");
 
-    const expectedSig = crypto.createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
+    const expectedSig = crypto
+      .createHmac("sha512", process.env.MONNIFY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
 
@@ -22,7 +22,9 @@ module.exports = async function monnifyWebhook(req, res) {
     const { paymentReference, paymentStatus, metaData, amountPaid } = event.eventData;
 
     console.log("📩 [DEBUG] Webhook parsed:", {
-      paymentReference, paymentStatus, amountPaid
+      paymentReference,
+      paymentStatus,
+      amountPaid,
     });
 
     let payment = await Payment.findOne({ paymentReference });
@@ -32,10 +34,11 @@ module.exports = async function monnifyWebhook(req, res) {
         paymentReference,
         amountPaid,
         status: paymentStatus === "SUCCESSFUL" ? "successful" : "failed",
-        metaData
+        metaData,
       });
     } else {
-      payment.status = paymentStatus === "SUCCESSFUL" ? "successful" : "failed";
+      payment.status =
+        paymentStatus === "SUCCESSFUL" ? "successful" : "failed";
       payment.amountPaid = amountPaid;
       await payment.save();
     }
@@ -45,12 +48,14 @@ module.exports = async function monnifyWebhook(req, res) {
 
       console.log("📩 [DEBUG] Reserving numbers:", numbers);
 
-      await SelectedNumber.insertMany(numbers.map(n => ({
-        number: n,
-        paymentReference,
-        event: metaData.event,
-        userEmail: metaData.playerEmail
-      })));
+      await SelectedNumber.insertMany(
+        numbers.map((n) => ({
+          number: n,
+          paymentReference,
+          event: metaData.event,
+          userEmail: metaData.playerEmail,
+        }))
+      );
     }
 
     res.send("OK");
@@ -59,4 +64,4 @@ module.exports = async function monnifyWebhook(req, res) {
     console.error("❌ [DEBUG] monnifyWebhook ERROR:", err.message);
     return res.status(500).send("Error");
   }
-};
+}

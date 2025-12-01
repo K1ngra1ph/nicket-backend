@@ -1,8 +1,8 @@
-const Payment = require("../../models/Payment");
-const verifyWithMonnify = require("./verifyWithMonnify");
-const sendEmail = require("./sendEmail");
+import Payment from "../../models/Payment.js";
+import verifyWithMonnify from "./verifyWithMonnify.js";
+import sendEmail from "./sendEmail.js";
 
-module.exports = async function verifyPayment(req, res) {
+export default async function verifyPayment(req, res) {
   console.log("🔍 Incoming verify request:", req.params);
 
   try {
@@ -26,12 +26,10 @@ module.exports = async function verifyPayment(req, res) {
       });
     }
 
-    // --- Verify with Monnify ---
     const result = await verifyWithMonnify(payment.transactionReference);
 
     console.log("🔍 Monnify verify result:", result);
 
-    // No response protection
     if (!result) {
       return res.status(500).json({
         success: false,
@@ -40,7 +38,6 @@ module.exports = async function verifyPayment(req, res) {
       });
     }
 
-    // Not paid yet (Monnify pending)
     if (!result.ok) {
       return res.json({
         success: true,
@@ -56,13 +53,11 @@ module.exports = async function verifyPayment(req, res) {
     const { responseBody } = result;
     const paymentStatus = responseBody?.paymentStatus || "UNKNOWN";
 
-    // 🎉 SEND EMAIL AFTER SUCCESSFUL PAYMENT
     if (paymentStatus === "PAID" || paymentStatus === "SUCCESSFUL") {
       console.log("📨 Verified successful payment — sending email...");
-      await sendEmail(payment);   // <── THIS IS THE CORRECT PLACE
+      await sendEmail(payment);
     }
 
-    // Respond back to frontend
     return res.json({
       success: true,
       verified: true,
@@ -81,4 +76,4 @@ module.exports = async function verifyPayment(req, res) {
       message: "Verify error"
     });
   }
-};
+}

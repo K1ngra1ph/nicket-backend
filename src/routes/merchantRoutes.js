@@ -1,4 +1,5 @@
-const express = require("express");
+import express from "express";
+
 const router = express.Router();
 
 const CONTRACT_CODE = process.env.MONNIFY_CONTRACT_CODE || "8779904402";
@@ -7,4 +8,4 @@ router.get("/contract-code", (req, res) => {
   res.json({ contractCode: CONTRACT_CODE });
 });
 
-module.exports = router;
+export default router;

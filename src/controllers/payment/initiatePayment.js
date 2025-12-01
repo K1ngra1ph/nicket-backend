@@ -1,15 +1,14 @@
-// controllers/payment/initiatePayment.js
-const axios = require("axios");
-const Payment = require("../../models/Payment");
-const normalizeNumbers = require("./normalizeSelectedNumbers");
-const { getMonnifyToken } = require("../../services/monnifyService");
+import axios from "axios";
+import Payment from "../../models/Payment.js";
+import normalizeNumbers from "./normalizeSelectedNumbers.js";
+import { getMonnifyToken } from "../../services/monnifyService.js";
 
 const BASE_URL =
   process.env.MONNIFY_MODE?.toUpperCase() === "LIVE"
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
-module.exports = async function initiatePayment(req, res) {
+export default async function initiatePayment(req, res) {
   try {
     console.log("🔵 [DEBUG] Incoming initiatePayment body:", req.body);
 
@@ -91,4 +90,4 @@ module.exports = async function initiatePayment(req, res) {
     console.error("❌ [DEBUG] initiatePayment ERROR:", err.response?.data || err.message);
     return res.status(500).json({ message: "Server error" });
   }
-};
+}
