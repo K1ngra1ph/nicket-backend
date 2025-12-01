@@ -11,7 +11,7 @@ export async function createAdminPanel(app) {
   const admin = new AdminJS({
     rootPath: "/admin",
     resources: [
-      { resource: User 
+      { resource: User,
         options: {
           listProperties: ["name", "email", "phone", "eventValue", "createdAt"],
           filterProperties: ["name", "email", "eventValue", "phone"],
@@ -19,7 +19,7 @@ export async function createAdminPanel(app) {
           showProperties: ["_id", "name", "email", "phone", "eventValue", "createdAt", "updatedAt"]
         }
       },
-      { resource: Payment
+      { resource: Payment,
         options: {
           listProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumbers", "eventValue", "createdAt"],
           filterProperties: ["paymentReference", "transactionReference", "status", "eventValue"],
