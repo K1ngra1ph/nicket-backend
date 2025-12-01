@@ -1,7 +1,6 @@
 import AdminJS from "adminjs";
 import AdminJSExpress from "@adminjs/express";
 import * as AdminJSMongoose from "@adminjs/mongoose";
-import mongoose from "mongoose";
 
 import User from "./models/User.js";
 import Payment from "./models/Payment.js";
@@ -21,14 +20,15 @@ export async function createAdminPanel(app) {
       favicon: "/favicon.ico",
       theme: {
         colors: {
-          primary100: "#4F46E5",
+          primary100: "#4F46E5"
         }
       }
     }
   });
 
   const router = AdminJSExpress.buildRouter(admin);
+
   app.use(admin.options.rootPath, router);
 
-  console.log("🔥 AdminJS running at:", admin.options.rootPath);
+  console.log(`🔥 AdminJS available at: ${admin.options.rootPath}`);
 }

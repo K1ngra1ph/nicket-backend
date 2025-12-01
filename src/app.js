@@ -1,8 +1,10 @@
-const cors = require("cors");
-const express = require("express");
-const paymentRoutes = require("./routes/paymentRoutes");
-const merchantRoutes = require("./routes/merchantRoutes");
-const numberRoutes = require("./routes/numbers");
+import express from "express";
+import cors from "cors";
+
+import paymentRoutes from "./routes/paymentRoutes.js";
+import merchantRoutes from "./routes/merchantRoutes.js";
+import numberRoutes from "./routes/numbers.js";
+
 import { createAdminPanel } from "./admin.js";
 
 const app = express();
@@ -15,6 +17,7 @@ app.use(
     allowedHeaders: "Content-Type,Authorization"
   })
 );
+
 app.options("*", cors());
 
 app.use(express.json());
@@ -27,13 +30,14 @@ app.post(
     next();
   }
 );
-
 await createAdminPanel(app);
 
 app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 
-app.get("/", (req, res) => res.send("🔥 Nicket Backend running with MongoDB!"));
+app.get("/", (req, res) => {
+  res.send("🔥 Nicket Backend running with MongoDB!");
+});
 
-module.exports = app;
+export default app;
