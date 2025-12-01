@@ -3,6 +3,7 @@ const express = require("express");
 const paymentRoutes = require("./routes/paymentRoutes");
 const merchantRoutes = require("./routes/merchantRoutes");
 const numberRoutes = require("./routes/numbers");
+import { createAdminPanel } from "./admin.js";
 
 const app = express();
 
@@ -26,6 +27,8 @@ app.post(
     next();
   }
 );
+
+await createAdminPanel(app);
 
 app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
