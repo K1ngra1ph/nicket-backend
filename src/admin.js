@@ -13,17 +13,17 @@ export async function createAdminPanel(app) {
     resources: [
       { resource: User,
         options: {
-          listProperties: ["name", "email", "phone", "eventValue", "createdAt"],
-          filterProperties: ["name", "email", "eventValue", "phone"],
+          listProperties: ["name", "email", "phone", "SelectedNumber", "eventValue", "createdAt"],
+          filterProperties: ["name", "email", "eventValue", "phone", "SelectedNumber"],
           editProperties: ["name", "email", "phone", "eventValue"],
-          showProperties: ["_id", "name", "email", "phone", "eventValue", "createdAt", "updatedAt"]
+          showProperties: ["_id", "name", "email", "phone", "selectedNumber", "eventValue", "createdAt", "updatedAt"]
         }
       },
       { resource: Payment,
         options: {
-          listProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumbers", "eventValue", "createdAt"],
+          listProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumber", "eventValue", "createdAt"],
           filterProperties: ["paymentReference", "transactionReference", "status", "eventValue"],
-          showProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumbers", "eventValue"],
+          showProperties: ["paymentReference", "transactionReference", "amount", "amountPaid", "status", "selectedNumber", "eventValue"],
           editProperties: ["status"],
           actions: {
             new: { isAccessible: false },
