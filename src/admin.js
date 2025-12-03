@@ -5,7 +5,7 @@ import * as AdminJSMongoose from "@adminjs/mongoose";
 import User from "./models/User.js";
 import Payment from "./models/Payment.js";
 import selectedNumber from "./models/SelectedNumber.js";
-import Event from "./models/Events.js";
+import Event from "./models/Event.js";
 
 AdminJS.registerAdapter(AdminJSMongoose);
 
