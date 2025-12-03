@@ -23,10 +23,10 @@ export async function createAdminPanel(app) {
       },
       { resource: Event,
         options: {
-          listProperties: ["name", "location", "date", "createdAt"],
-          filterProperties: ["name", "location", "date"],
-          editProperties: ["name", "location", "date"],
-          showProperties: ["_id", "name", "location", "date", "createdAt", "updatedAt"]
+          listProperties: ["name", "location", "date", "active", "createdAt"],
+          filterProperties: ["name", "location", "date", "active"],
+          editProperties: ["name", "location", "date", "active"],
+          showProperties: ["_id", "name", "location", "date", "active", "createdAt", "updatedAt"]
         }
       },
       { resource: Payment,
