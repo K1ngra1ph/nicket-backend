@@ -4,6 +4,8 @@ import * as AdminJSMongoose from "@adminjs/mongoose";
 
 import User from "./models/User.js";
 import Payment from "./models/Payment.js";
+import selectedNumber from "./models/SelectedNumber.js";
+import Event from "./models/Events.js";
 
 AdminJS.registerAdapter(AdminJSMongoose);
 
@@ -13,10 +15,18 @@ export async function createAdminPanel(app) {
     resources: [
       { resource: User,
         options: {
-          listProperties: ["name", "email", "phone", "SelectedNumber", "eventValue", "createdAt"],
-          filterProperties: ["name", "email", "eventValue", "phone", "SelectedNumber"],
+          listProperties: ["name", "email", "phone", "selectedNumber", "eventValue", "createdAt"],
+          filterProperties: ["name", "email", "phone", "selectedNumber", "eventValue"],
           editProperties: ["name", "email", "phone", "eventValue"],
           showProperties: ["_id", "name", "email", "phone", "selectedNumber", "eventValue", "createdAt", "updatedAt"]
+        }
+      },
+      { resource: Event,
+        options: {
+          listProperties: ["name", "location", "date", "createdAt"],
+          filterProperties: ["name", "location", "date"],
+          editProperties: ["name", "location", "date"],
+          showProperties: ["_id", "name", "location", "date", "createdAt", "updatedAt"]
         }
       },
       { resource: Payment,
@@ -32,6 +42,9 @@ export async function createAdminPanel(app) {
         }
        }
     ],
+    dashboard: {
+      component: AdminJS.bundle("./components/Dashboard.jsx")
+    },
     branding: {
       companyName: "Nicket",
       logo: true,
@@ -45,7 +58,6 @@ export async function createAdminPanel(app) {
   });
 
   const router = AdminJSExpress.buildRouter(admin);
-
   app.use(admin.options.rootPath, router);
 
   console.log(`🔥 AdminJS available at: ${admin.options.rootPath}`);
