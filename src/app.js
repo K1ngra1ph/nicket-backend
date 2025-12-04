@@ -4,11 +4,7 @@ import cors from "cors";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import merchantRoutes from "./routes/merchantRoutes.js";
 import numberRoutes from "./routes/numbers.js";
-import adminRoutes from "./routes/admin.js";
 import eventRoutes from "./routes/eventRoutes.js";
-import adminAnalyticsRoutes from "./routes/adminAnalytics.js";
-
-import { createAdminPanel } from "./admin.js";
 
 const app = express();
 
@@ -39,8 +35,6 @@ await createAdminPanel(app);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/admin", adminAnalyticsRoutes);
 app.use("/events", eventRoutes);
 
 app.get("/", (req, res) => {

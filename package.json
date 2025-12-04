@@ -4,19 +4,13 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "build": "npm install"
+    "start": "node --max-old-space-size=4096 src/server.js",
+    "dev": "nodemon --max-old-space-size=4096 src/server.js"
   },
   "engines": {
     "node": ">=18.x"
   },
   "dependencies": {
-    "@adminjs/design-system": "^4.1.1",
-    "@adminjs/express": "^6.1.1",
-    "@adminjs/mongoose": "^4.1.0",
-    "@adminjs/upload": "^4.0.2",
-    "adminjs": "^7.8.17",
     "axios": "^1.6.7",
     "bcryptjs": "^3.0.3",
     "chart.js": "^4.5.1",
