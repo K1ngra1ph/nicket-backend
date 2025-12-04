@@ -9,7 +9,6 @@ import eventRoutes from "./routes/eventRoutes.js";
 const app = express();
 
 app.use(express.json());
-
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "*",
@@ -18,7 +17,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
 app.options("*", cors());
 
 app.post(
@@ -30,15 +28,14 @@ app.post(
   }
 );
 
-await createAdminPanel(app);
-
+// Routes
 app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/events", eventRoutes);
 
 app.get("/", (req, res) => {
-  res.send("🔥 Nicket Backend running with MongoDB + Admin Panel!");
+  res.send("🔥 Nicket Backend running with MongoDB!");
 });
 
 export default app;
