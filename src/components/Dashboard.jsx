@@ -1,4 +1,3 @@
-// src/components/Dashboard.jsx
 import React, { useEffect, useState } from "react";
 import { ApiClient } from "adminjs";
 import {
@@ -6,121 +5,120 @@ import {
   H2,
   Text,
   Select,
-  Table,
-  TableRow,
-  TableCell,
-  TableHead,
-  TableBody,
-  Button,
   Loader,
   Label,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
 } from "@adminjs/design-system";
 
 const api = new ApiClient();
 
 const Dashboard = () => {
   const [events, setEvents] = useState([]);
-  const [eventId, setEventId] = useState("");
+  const [eventId, setEventId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [revenue, setRevenue] = useState({ totalRevenue: 0, totalTransactions: 0 });
-  const [availability, setAvailability] = useState([]);
+  const [stats, setStats] = useState({
+    eventName: "",
+    totalRevenue: 0,
+    totalPayments: 0,
+    soldNumbers: 0,
+    availableNumbers: 0,
+    maxNumbers: 0
+  });
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get("/api/admin/analytics/events");
-        setEvents(res.data || []);
-        if (res.data && res.data.length) {
-          setEventId(res.data[0]._id);
-        }
-      } catch (err) {
-        console.error("Failed to load events", err);
-      }
-    })();
+    loadEvents();
   }, []);
 
+  const loadEvents = async () => {
+    try {
+      const res = await api.get("/api/admin/events");
+      const list = res.data || [];
+      setEvents(list);
+
+      if (list.length) setEventId(list[0]._id);
+    } catch (err) {
+      console.error("Failed to load events:", err);
+    }
+  };
+
   useEffect(() => {
-    if (!eventId) return;
-    loadAll(eventId);
+    if (eventId) loadAnalytics(eventId);
   }, [eventId]);
 
-  const loadAll = async (id) => {
+  const loadAnalytics = async (id) => {
     setLoading(true);
     try {
-      const [revRes, avRes] = await Promise.all([
-        api.get(`/api/admin/analytics/revenue?eventId=${id}`),
-        api.get(`/api/admin/analytics/availability?eventId=${id}`)
-      ]);
-      setRevenue(revRes.data || { totalRevenue: 0, totalTransactions: 0 });
-      setAvailability(avRes.data || []);
+      const res = await api.get(`/api/admin/revenue-analytics?eventId=${id}`);
+      setStats(res.data);
     } catch (err) {
-      console.error("Failed to load analytics", err);
-    } finally {
-      setLoading(false);
+      console.error("Failed to load analytics:", err);
     }
+    setLoading(false);
   };
 
   return (
     <Box variant="grey" p="xl">
-      <H2>📊 Event Analytics Dashboard</H2>
-      <Text color="grey70" mb="lg">Select an event to view revenue & number availability.</Text>
+      <H2 mb="xl">📊 Event Analytics Dashboard</H2>
 
-      <Box mb="lg" display="flex" alignItems="center" gap="md">
-        <Label>Event</Label>
+      <Box mb="xl">
+        <Label>Choose Event</Label>
         <Select
-          options={events.map(e => ({ value: e._id, label: e.name }))}
+          width="350px"
           value={eventId}
+          options={events.map(e => ({ value: e._id, label: e.name }))}
           onChange={(val) => setEventId(val)}
-          width="320px"
         />
-        <Button onClick={() => loadAll(eventId)} size="sm" variant="primary">Refresh</Button>
       </Box>
 
-      {loading ? <Loader /> : (
+      {loading ? (
+        <Loader />
+      ) : (
         <>
-          <Box display="grid" gridTemplateColumns="1fr 1fr" gap="lg" mb="lg">
-            <Box variant="white" p="lg" borderRadius="lg" boxShadow="card">
-              <Text fontWeight="600">Total Revenue</Text>
-              <H2>₦{Number(revenue.totalRevenue || 0).toLocaleString()}</H2>
-            </Box>
-            <Box variant="white" p="lg" borderRadius="lg" boxShadow="card">
-              <Text fontWeight="600">Total Transactions</Text>
-              <H2>{Number(revenue.totalTransactions || 0)}</H2>
-            </Box>
+          {/* KPI Cards */}
+          <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap="lg" mb="xl">
+            <CardStat title="Revenue" value={`₦${stats.totalRevenue.toLocaleString()}`} />
+            <CardStat title="Transactions" value={stats.totalPayments} />
+            <CardStat title="Numbers Sold" value={`${stats.soldNumbers}/${stats.maxNumbers}`} />
           </Box>
 
-          <Box variant="white" p="lg" borderRadius="lg" boxShadow="card" mb="lg">
-            <Text fontWeight="600" mb="sm">Number Availability (first 20 shown)</Text>
+          {/* Availability bar */}
+          <Box variant="white" p="lg" borderRadius="lg" boxShadow="card">
+            <Text fontWeight="bold" mb="md">🎟 Number Availability</Text>
 
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Number</TableCell>
-                  <TableCell>Used</TableCell>
-                  <TableCell>Available</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Count</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {availability.slice(0, 20).map((r) => (
-                  <TableRow key={r.number}>
-                    <TableCell>{r.number}</TableCell>
-                    <TableCell>{r.used}</TableCell>
-                    <TableCell>{r.available}</TableCell>
-                  </TableRow>
-                ))}
+                <TableRow>
+                  <TableCell>Available</TableCell>
+                  <TableCell>{stats.availableNumbers}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Sold</TableCell>
+                  <TableCell>{stats.soldNumbers}</TableCell>
+                </TableRow>
               </TableBody>
             </Table>
-          </Box>
-
-          <Box variant="white" p="lg" borderRadius="lg" boxShadow="card">
-            <Text fontWeight="600" mb="sm">Availability Summary</Text>
-            <Text>Numbers available: {availability.filter(a => a.available > 0).length}</Text>
-            <Text>Numbers sold: {availability.filter(a => a.used > 0).length}</Text>
           </Box>
         </>
       )}
     </Box>
   );
 };
+
+const CardStat = ({ title, value }) => (
+  <Box variant="white" p="lg" borderRadius="xl" boxShadow="card">
+    <Text color="grey60" fontSize="sm" mb="xs">{title}</Text>
+    <H2>{value}</H2>
+  </Box>
+);
 
 export default Dashboard;

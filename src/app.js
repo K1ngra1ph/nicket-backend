@@ -16,10 +16,10 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL || "*",
     credentials: true,
-    methods: "GET,POST,OPTIONS",
-    allowedHeaders: "Content-Type,Authorization",
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -40,11 +40,11 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminAnalyticsRoutes);
 app.use("/events", eventRoutes);
-app.use("/api/admin/analytics", adminAnalyticsRoutes);
 
 app.get("/", (req, res) => {
-  res.send("🔥 Nicket Backend running with MongoDB!");
+  res.send("🔥 Nicket Backend running with MongoDB + Admin Panel!");
 });
 
 export default app;
