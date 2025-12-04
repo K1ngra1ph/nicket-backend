@@ -5,7 +5,6 @@ import { ComponentLoader } from "adminjs";
 
 import User from "./models/User.js";
 import Payment from "./models/Payment.js";
-import SelectedNumber from "./models/SelectedNumber.js";
 import Event from "./models/Event.js";
 
 AdminJS.registerAdapter(AdminJSMongoose);
@@ -17,6 +16,7 @@ export async function createAdminPanel(app) {
   const admin = new AdminJS({
     rootPath: "/admin",
     componentLoader,
+
     dashboard: {
       component: Dashboard
     },
@@ -26,20 +26,18 @@ export async function createAdminPanel(app) {
         resource: User,
         options: {
           navigation: "Users",
-          listProperties: ["name", "email", "phone", "selectedNumber", "eventValue", "createdAt"],
-          filterProperties: ["name", "email", "phone", "selectedNumber", "eventValue"],
-          editProperties: ["name", "email", "phone", "eventValue"],
+          listProperties: ["name", "email", "role", "createdAt"],
+          filterProperties: ["name", "email", "role"],
+          editProperties: ["name", "email", "role"],
           showProperties: [
             "_id",
             "name",
             "email",
-            "phone",
-            "selectedNumber",
-            "eventValue",
+            "role",
             "createdAt",
-            "updatedAt",
-          ],
-        },
+            "updatedAt"
+          ]
+        }
       },
 
       {
@@ -56,9 +54,9 @@ export async function createAdminPanel(app) {
             "date",
             "active",
             "createdAt",
-            "updatedAt",
-          ],
-        },
+            "updatedAt"
+          ]
+        }
       },
 
       {
@@ -67,31 +65,41 @@ export async function createAdminPanel(app) {
           navigation: "Payments",
           listProperties: [
             "paymentReference",
-            "transactionReference",
-            "amount",
             "amountPaid",
             "status",
-            "selectedNumber",
             "eventValue",
-            "createdAt",
+            "phone",
+            "createdAt"
           ],
-          filterProperties: ["paymentReference", "transactionReference", "status", "eventValue"],
+          filterProperties: [
+            "paymentReference",
+            "transactionReference",
+            "status",
+            "eventValue"
+          ],
           showProperties: [
             "paymentReference",
             "transactionReference",
             "amount",
             "amountPaid",
-            "status",
-            "selectedNumber",
             "eventValue",
+            "name",
+            "email",
+            "phone",
+            "selectedNumbers",
+            "status",
+            "createdAt",
+            "updatedAt"
           ],
           editProperties: ["status"],
+
           actions: {
             new: { isAccessible: false },
-            edit: { isAccessible: false },
-          },
-        },
-      },
+            edit: { isAccessible: true },
+            delete: { isAccessible: true }
+          }
+        }
+      }
     ],
 
     branding: {
@@ -100,12 +108,12 @@ export async function createAdminPanel(app) {
       favicon: "/favicon.ico",
       theme: {
         colors: {
-          primary100: "#3B82F6",
-          primary80: "#2563EB",
-          grey100: "#F9FAFB",
-        },
-      },
-    },
+          primary100: "#4F46E5",
+          primary80: "#3B82F6",
+          grey100: "#F9FAFB"
+        }
+      }
+    }
   });
 
   const router = AdminJSExpress.buildRouter(admin);
