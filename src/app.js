@@ -6,6 +6,7 @@ import merchantRoutes from "./routes/merchantRoutes.js";
 import numberRoutes from "./routes/numbers.js";
 import adminRoutes from "./routes/admin.js";
 import eventRoutes from "./routes/eventRoutes.js";
+import adminAnalyticsRoutes from "./routes/adminAnalytics.js";
 
 import { createAdminPanel } from "./admin.js";
 
@@ -40,6 +41,7 @@ app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/events", eventRoutes);
+app.use("/api/admin/analytics", adminAnalyticsRoutes);
 
 app.get("/", (req, res) => {
   res.send("🔥 Nicket Backend running with MongoDB!");
