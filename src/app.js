@@ -5,7 +5,6 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import merchantRoutes from "./routes/merchantRoutes.js";
 import numberRoutes from "./routes/numbers.js";
 import eventRoutes from "./routes/eventRoutes.js";
-import adminExportRoutes from "./routes/adminExport.js";
 
 const app = express();
 
@@ -35,7 +34,6 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/events", eventRoutes);
-app.use("/api/admin", adminExportRoutes);
 
 app.get("/", (req, res) => {
   res.send("🔥 Nicket Backend running with MongoDB!");
