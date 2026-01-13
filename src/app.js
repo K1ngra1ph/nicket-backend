@@ -40,19 +40,19 @@ app.post(
   }
 );
 
-// 2. Serve Static Files (Admin Panel)
-const buildPath = path.resolve(__dirname, "admin/build");
-console.log("Serving admin static files from:", buildPath);
-app.use(express.static(buildPath));
-
 // 3. API Routes
 app.use("/api/payments", verifyToken, paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
-app.use("/events", eventRoutes); 
+app.use("/api/events", eventRoutes); 
 app.use("/api/users", verifyAdmin, userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/settings", settingsRoutes);
+
+// 2. Serve Static Files (Admin Panel)
+const buildPath = path.resolve(__dirname, "admin/build");
+console.log("Serving admin static files from:", buildPath);
+app.use(express.static(buildPath));
 
 app.get("*", (req, res) => {
   if (req.url.startsWith('/api')) {
