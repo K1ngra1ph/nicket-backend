@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import Payment from "../../models/Payment.js";
-import SelectedNumber from "../../models/SelectedNumber.js";
+import NumberCount from "../../models/SelectedNumber.js";
 
 export default async function monnifyWebhook(req, res) {
   try {
@@ -21,47 +21,47 @@ export default async function monnifyWebhook(req, res) {
     const event = JSON.parse(rawBody.toString("utf8"));
     const { paymentReference, paymentStatus, metaData, amountPaid } = event.eventData;
 
-    console.log("📩 [DEBUG] Webhook parsed:", {
-      paymentReference,
-      paymentStatus,
-      amountPaid,
-    });
+    console.log("📩 [DEBUG] Payment Update:", { paymentReference, status: paymentStatus });
 
     let payment = await Payment.findOne({ paymentReference });
 
+    const newStatus = paymentStatus === "SUCCESSFUL" ? "successful" : "failed";
+
     if (!payment) {
+      const numbers = metaData?.selectedNumbers ? metaData.selectedNumbers.split(",").map(Number) : [];
       payment = await Payment.create({
         paymentReference,
         amountPaid,
-        status: paymentStatus === "SUCCESSFUL" ? "successful" : "failed",
-        metaData,
+        amount: amountPaid,
+        status: newStatus,
+        email: metaData?.playerEmail || "unknown@nicket.com",
+        name: metaData?.playerName || "Unknown",
+        phone: "0000000000",
+        eventValue: metaData?.event || "Unknown",
+        selectedNumbers: numbers
       });
     } else {
-      payment.status =
-        paymentStatus === "SUCCESSFUL" ? "successful" : "failed";
+      payment.status = newStatus;
       payment.amountPaid = amountPaid;
+      if ((!payment.selectedNumbers || payment.selectedNumbers.length === 0) && metaData?.selectedNumbers) {
+         payment.selectedNumbers = metaData.selectedNumbers.split(",").map(Number);
+      }
       await payment.save();
     }
+    if (newStatus === "successful") {
+      const numbers = payment.selectedNumbers;
+      const eventValue = payment.eventValue;
 
-    if (payment.status === "successful" && metaData?.selectedNumbers) {
-      const numbers = metaData.selectedNumbers.split(",").map(Number);
-
-      console.log("📩 [DEBUG] Reserving numbers:", numbers);
-
-      await SelectedNumber.insertMany(
-        numbers.map((n) => ({
-          number: n,
-          paymentReference,
-          event: metaData.event,
-          userEmail: metaData.playerEmail,
-        }))
-      );
+      console.log(`📩 [DEBUG] Updating counts for Event: ${eventValue}, Numbers: ${numbers}`);
+      for (const num of numbers) {
+        await NumberCount.incrementCount(eventValue, num);
+      }
     }
 
     res.send("OK");
 
   } catch (err) {
     console.error("❌ [DEBUG] monnifyWebhook ERROR:", err.message);
-    return res.status(500).send("Error");
+    return res.status(200).send("Error logged");
   }
 }
