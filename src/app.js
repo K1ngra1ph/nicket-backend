@@ -41,7 +41,7 @@ app.post(
 );
 
 // 2. Serve Static Files (Admin Panel)
-const buildPath = path.resolve(__dirname, "admin/public");
+const buildPath = path.resolve(__dirname, "admin/build");
 console.log("Serving admin static files from:", buildPath);
 app.use(express.static(buildPath));
 
