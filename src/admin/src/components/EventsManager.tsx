@@ -14,7 +14,7 @@ const EventsManager = () => {
     price: '',
     currency: 'NGN',
     active: true,
-    image: '' // Stores the Base64 string
+    image: ''
   });
 
   const getToken = () => localStorage.getItem('token');
@@ -23,7 +23,7 @@ const EventsManager = () => {
   const fetchEvents = async () => {
     try {
       const token = getToken();
-      const response = await fetch('/events', {
+      const response = await fetch('/api/events', {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -48,7 +48,6 @@ const EventsManager = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check size (limit to 2MB to keep DB happy)
       if (file.size > 2 * 1024 * 1024) {
         alert("Image is too large. Please choose an image under 2MB.");
         return;
@@ -69,7 +68,7 @@ const EventsManager = () => {
       const payload = { ...formData, price: Number(formData.price) };
       const token = getToken();
 
-      const response = await fetch('/events', {
+      const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -95,7 +94,7 @@ const EventsManager = () => {
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
     try {
       const token = getToken();
-      const response = await fetch(`/events/${id}`, {
+      const response = await fetch(`/api/events/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ active: !currentStatus })
@@ -108,7 +107,7 @@ const EventsManager = () => {
     if(!window.confirm("Are you sure? This will delete the event.")) return;
     try {
       const token = getToken();
-      const response = await fetch(`/events/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const response = await fetch(`/api/events/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       if (response.ok) fetchEvents();
     } catch (error) { console.error("Delete error:", error); }
   };

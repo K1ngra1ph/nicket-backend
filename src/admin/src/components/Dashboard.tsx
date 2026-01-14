@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
-} from 'recharts';
-import { ArrowUpRight, Users, CreditCard, DollarSign } from 'lucide-react';
-import { PaymentData, EventData } from '../types';
-
-interface DashboardProps {
-  events: EventData[];
+  } from 'recharts';
+  import { ArrowUpRight, Users, CreditCard, DollarSign } from 'lucide-react';
+  import { PaymentData, EventData } from '../types';
+  
+  interface DashboardProps {
+    events: EventData[];
 }
 
 type TimeFilter = 'Days' | 'Week' | 'Month' | 'Year';

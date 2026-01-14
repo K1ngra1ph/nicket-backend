@@ -56,7 +56,7 @@ const App: React.FC = () => {
   // --- DATA FETCHING ---
   useEffect(() => {
     if (token) {
-        fetch('/events', {
+        fetch('/api/events', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
