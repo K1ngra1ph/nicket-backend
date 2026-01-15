@@ -1,6 +1,5 @@
 import express from "express";
 import Payment from "../models/Payment.js";
-
 import initiatePayment from "../controllers/payment/initiatePayment.js";
 import verifyPayment from "../controllers/payment/verifyPayment.js";
 import redirectAfterPayment from "../controllers/payment/redirectAfterPayment.js";
@@ -21,6 +20,7 @@ router.post(
   monnifyWebhook
 );
 
+// 1. Get all payments list
 router.get("/", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const payments = await Payment.find().sort({ createdAt: -1 });
@@ -30,10 +30,12 @@ router.get("/", verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-router.post("/:id/refund", async (req, res) => {
+// 2. Refund a payment
+router.post("/:id/refund", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ message: "Payment not found" });
+    
     payment.status = "refunded"; 
     await payment.save();
 

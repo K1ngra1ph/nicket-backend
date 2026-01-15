@@ -11,6 +11,7 @@ import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import { verifyToken, verifyAdmin } from "./middleware/authMiddleware.js";
+import numberRoutes from "./routes/numbers.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +42,7 @@ app.post(
 );
 
 // 3. API Routes
-app.use("/api/payments", verifyToken, paymentRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/api/events", eventRoutes); 
