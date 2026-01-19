@@ -7,6 +7,8 @@ const eventSchema = new mongoose.Schema({
   active: { type: Boolean, default: true },
   currency: { type: String, default: "NGN" },
   price: { type: Number, required: true },
+  winningNumber: { type: Number, default: null },
+  drawStatus: { type: String, enum: ['open', 'drawn'], default: 'open' },
   image: { type: String }
 }, { timestamps: true });
 

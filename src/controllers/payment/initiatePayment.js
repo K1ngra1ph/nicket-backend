@@ -9,22 +9,49 @@ const BASE_URL =
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
+const SLOT_LIMIT = 10; 
+
 export default async function initiatePayment(req, res) {
   try {
-    console.log("🔵 [DEBUG] Incoming initiatePayment body:", req.body);
-
-    const { name, email, phone, selectedNumbers, eventValue } = req.body;
-
+    const { name, email, phone, selectedNumbers, eventValue, eventName } = req.body;
     const numbers = normalizeNumbers(selectedNumbers);
+
     if (numbers.length === 0) {
       return res.status(400).json({ message: "No numbers selected" });
     }
 
     const eventDoc = await Event.findById(eventValue);
-    const ticketPrice = eventDoc?.price || 1000; 
-    const calculatedAmount = numbers.length * ticketPrice;
+    
+    if (!eventDoc) {
+      return res.status(404).json({ message: "The selected prize no longer exists." });
+    }
 
-    console.log(`💰 [DEBUG] Price Check: ${numbers.length} tickets x ₦${ticketPrice} = ₦${calculatedAmount}`);
+    if (eventDoc.drawStatus === 'drawn' || !eventDoc.active) {
+      return res.status(400).json({ message: "This raffle is closed. No more entries allowed." });
+    }
+
+    const existingPayments = await Payment.find({ 
+      eventValue: eventValue, 
+      status: { $in: ["successful", "pending"] },
+    }, { selectedNumbers: 1 });
+
+    const usageCount = {};
+    existingPayments.forEach(p => {
+      p.selectedNumbers.forEach(num => {
+        usageCount[num] = (usageCount[num] || 0) + 1;
+      });
+    });
+
+    for (let num of numbers) {
+      if ((usageCount[num] || 0) >= SLOT_LIMIT) {
+        return res.status(400).json({ 
+          message: `Number ${num} just sold out! Please go back and pick another number.` 
+        });
+      }
+    }
+
+    const ticketPrice = Number(eventDoc.price) || 1000; 
+    const calculatedAmount = numbers.length * ticketPrice;
 
     const token = await getMonnifyToken();
     const paymentReference = `NICKET-${Date.now()}`;
@@ -36,7 +63,7 @@ export default async function initiatePayment(req, res) {
       customerEmail: email,
       customerPhone: phone,
       customerId: email,
-      paymentDescription: `Nicket Payment - ${eventDoc?.name || eventValue}`,
+      paymentDescription: `Nicket Play - ${eventDoc.name}`,
       currencyCode: "NGN",
       contractCode: process.env.MONNIFY_CONTRACT_CODE,
       redirectUrl: `${process.env.BACKEND_URL}/api/payments/redirect`,
@@ -55,10 +82,7 @@ export default async function initiatePayment(req, res) {
     );
 
     if (!response.data.requestSuccessful) {
-      return res.status(400).json({
-        message: "Monnify init failed",
-        error: response.data
-      });
+      return res.status(400).json({ message: "Monnify connection failed" });
     }
 
     const txnRef = response.data.responseBody.transactionReference;
@@ -69,14 +93,15 @@ export default async function initiatePayment(req, res) {
       amount: calculatedAmount,
       amountPaid: 0,
       eventValue,
+      eventName: eventDoc.name,
       name,
       email,
       phone,
       status: "pending",
       selectedNumbers: numbers,
-      metaData: {
-        eventName: eventDoc?.name || "Unknown Event",
-        winner: false
+      metadata: {
+        winner: false,
+        playerEmail: email
       }
     });
 
@@ -88,7 +113,7 @@ export default async function initiatePayment(req, res) {
     });
 
   } catch (err) {
-    console.error("❌ [DEBUG] initiatePayment ERROR:", err.message);
-    return res.status(500).json({ message: "Server error" });
+    console.error("❌ initiatePayment Server Error:", err.message);
+    return res.status(500).json({ message: "Unable to process payment request." });
   }
 }

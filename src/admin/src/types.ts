@@ -6,13 +6,14 @@ export interface EventData {
   active: boolean;
   image?: string;
   eventId: string;
-  price?: number;
+  price: number;
+  winningNumber?: number | null;
+  drawStatus?: 'open' | 'drawn';
   currency: string; 
   createdAt?: string;
   updatedAt?: string;
 }
 
-// Mirrors the Payment Mongoose schema
 export interface PaymentData {
   _id: string;
   paymentReference: string;
@@ -20,6 +21,7 @@ export interface PaymentData {
   amount: number;
   amountPaid: number;
   eventValue: string;
+  eventName?: string;
   name: string;
   email: string;
   phone: string;
@@ -29,6 +31,9 @@ export interface PaymentData {
   createdAt: string;
   updatedAt: string;
   refunded?: boolean; 
+  metadata?: {
+    winner?: boolean | string;
+  };
 }
 
 export type ViewState = 'dashboard' | 'events' | 'payments' | 'users' | 'settings';
