@@ -1,18 +1,18 @@
 import mongoose from "mongoose";
 
 const systemSettingsSchema = new mongoose.Schema({
-  isConfig: { type: Boolean, default: true }, 
-  
-  platformName: { type: String, default: "Nicket" },
-  currency: { type: String, default: "NGN" },
-  supportEmail: { type: String, default: "support@nicket.com" },
-  
+  platformName: { type: String, default: 'Nicket' },
+  supportEmail: { type: String, default: '' },
+  currency: { type: String, default: 'NGN' },
+  timezone: { type: String, default: 'Africa/Lagos' },
+  maintenanceMode: { type: Boolean, default: false },
   socials: {
-    twitter: { type: String, default: "" },
-    instagram: { type: String, default: "" },
-    facebook: { type: String, default: "" },
-    whatsapp: { type: String, default: "" },
-    phone: { type: String, default: "" }
+    twitter: { type: String, default: '' },
+    instagram: { type: String, default: '' },
+    facebook: { type: String, default: '' },
+    whatsapp: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    email: { type: String, default: '' }
   }
 }, { timestamps: true });
 

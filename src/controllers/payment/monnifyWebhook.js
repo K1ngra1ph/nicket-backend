@@ -1,13 +1,12 @@
 import crypto from "crypto";
 import Payment from "../../models/Payment.js";
 import NumberCount from "../../models/SelectedNumber.js";
+import sendEmail from "./sendEmail.js";
 
 export default async function monnifyWebhook(req, res) {
   try {
-    console.log("📩 [DEBUG] Webhook received");
-
-    const rawBody = req.body;
     const signature = req.headers["monnify-signature"];
+    const rawBody = req.body;
 
     if (!signature) return res.status(400).send("Missing signature");
 
@@ -16,52 +15,71 @@ export default async function monnifyWebhook(req, res) {
       .update(rawBody)
       .digest("hex");
 
-    if (expectedSig !== signature) return res.status(403).send("Invalid signature");
+    if (expectedSig !== signature) {
+      console.error("⚠️ [WEBHOOK] Unauthorized Attempt - Invalid Signature");
+      return res.status(403).send("Invalid signature");
+    }
 
     const event = JSON.parse(rawBody.toString("utf8"));
-    const { paymentReference, paymentStatus, metaData, amountPaid } = event.eventData;
+    const { paymentReference, paymentStatus, metaData, amountPaid, transactionReference } = event.eventData;
 
-    console.log("📩 [DEBUG] Payment Update:", { paymentReference, status: paymentStatus });
+    console.log(`📩 [WEBHOOK] Processing: ${paymentReference} | Status: ${paymentStatus}`);
 
     let payment = await Payment.findOne({ paymentReference });
 
-    const newStatus = paymentStatus === "SUCCESSFUL" ? "successful" : "failed";
+    const isSuccessful = paymentStatus === "SUCCESSFUL" || paymentStatus === "PAID";
+    const statusToSet = isSuccessful ? "successful" : "failed";
 
     if (!payment) {
       const numbers = metaData?.selectedNumbers ? metaData.selectedNumbers.split(",").map(Number) : [];
       payment = await Payment.create({
         paymentReference,
-        amountPaid,
+        transactionReference,
         amount: amountPaid,
-        status: newStatus,
+        amountPaid: amountPaid,
+        status: statusToSet,
         email: metaData?.playerEmail || "unknown@nicket.com",
-        name: metaData?.playerName || "Unknown",
-        phone: "0000000000",
+        name: metaData?.playerName || "Guest Player",
+        phone: metaData?.playerPhone || "0000000000",
         eventValue: metaData?.event || "Unknown",
-        selectedNumbers: numbers
+        selectedNumbers: numbers,
+        metadata: { winner: false }
       });
-    } else {
-      payment.status = newStatus;
-      payment.amountPaid = amountPaid;
+    }
+
+    if (isSuccessful && payment.status !== "successful") {
+      
+      payment.status = "successful";
+      payment.amountPaid = Number(amountPaid);
+      payment.transactionReference = transactionReference;
+      
       if ((!payment.selectedNumbers || payment.selectedNumbers.length === 0) && metaData?.selectedNumbers) {
-         payment.selectedNumbers = metaData.selectedNumbers.split(",").map(Number);
+        payment.selectedNumbers = metaData.selectedNumbers.split(",").map(Number);
       }
+
+      await payment.save();
+
+      const eventValue = payment.eventValue;
+      for (const num of payment.selectedNumbers) {
+        try {
+          await NumberCount.incrementCount(eventValue, num);
+        } catch (countErr) {
+          console.error(`❌ Failed to increment number ${num}:`, countErr.message);
+        }
+      }
+
+      console.log(`📨 [WEBHOOK] Payment Verified. Triggering email to ${payment.email}`);
+      sendEmail(payment).catch(err => console.error("❌ Post-payment Email Error:", err));
+
+    } else if (!isSuccessful) {
+      payment.status = "failed";
       await payment.save();
     }
-    if (newStatus === "successful") {
-      const numbers = payment.selectedNumbers;
-      const eventValue = payment.eventValue;
 
-      console.log(`📩 [DEBUG] Updating counts for Event: ${eventValue}, Numbers: ${numbers}`);
-      for (const num of numbers) {
-        await NumberCount.incrementCount(eventValue, num);
-      }
-    }
-
-    res.send("OK");
+    res.status(200).send("OK");
 
   } catch (err) {
-    console.error("❌ [DEBUG] monnifyWebhook ERROR:", err.message);
-    return res.status(200).send("Error logged");
+    console.error("❌ [WEBHOOK] System Error:", err.message);
+    return res.status(200).send("Error processed");
   }
 }

@@ -8,7 +8,11 @@ router.get("/", async (req, res) => {
   try {
     let settings = await SystemSettings.findOne();
     if (!settings) {
-      settings = await SystemSettings.create({});
+      settings = await SystemSettings.create({
+        platformName: "Nicket",
+        currency: "NGN",
+        maintenanceMode: false
+      });
     }
     res.json(settings);
   } catch (err) {

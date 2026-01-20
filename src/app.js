@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
-
+import monnifyWebhook from "./controllers/payment/monnifyWebhook.js"; 
 import paymentRoutes from "./routes/paymentRoutes.js";
 import merchantRoutes from "./routes/merchantRoutes.js";
 import numberRoutes from "./routes/numbers.js";
@@ -17,6 +18,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+app.post(
+  "/api/payments/monnify-webhook",
+  express.raw({ type: "application/json" }),
+  monnifyWebhook
+);
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -30,17 +37,16 @@ app.use(
 );
 app.options("*", cors());
 
-// 1. Webhook Route
-app.post(
-  "/api/payments/monnify-webhook",
-  express.raw({ type: "*/*" }),
-  (req, res, next) => {
-    req.isRawBody = true;
-    next();
-  }
-);
+const paymentLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 15,
+  message: { message: "Too many attempts. Please wait 60 seconds." },
+  standardHeaders: true, 
+  legacyHeaders: false,
+});
 
-// 3. API Routes
+app.use("/api/payments/initiate-payment", paymentLimiter);
+app.use("/api/payments/verify", paymentLimiter);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/numbers", numberRoutes);
 app.use("/api/merchant", merchantRoutes);
@@ -49,9 +55,7 @@ app.use("/api/users", verifyAdmin, userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/settings", settingsRoutes);
 
-// 2. Serve Static Files (Admin Panel)
 const buildPath = path.resolve(__dirname, "admin/build");
-console.log("Serving admin static files from:", buildPath);
 app.use(express.static(buildPath));
 
 app.get("*", (req, res) => {

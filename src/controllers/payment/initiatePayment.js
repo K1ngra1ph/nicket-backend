@@ -2,6 +2,7 @@ import axios from "axios";
 import Payment from "../../models/Payment.js";
 import Event from "../../models/Event.js";
 import normalizeNumbers from "./normalizeSelectedNumbers.js";
+import SystemSettings from "../../models/SystemSettings.js";
 import { getMonnifyToken } from "../../services/monnifyService.js";
 
 const BASE_URL =
@@ -9,30 +10,36 @@ const BASE_URL =
     ? "https://api.monnify.com"
     : "https://sandbox.monnify.com";
 
-const SLOT_LIMIT = 10; 
+const SLOT_LIMIT = 10;
 
 export default async function initiatePayment(req, res) {
   try {
+    const settings = await SystemSettings.findOne();
+    if (settings?.maintenanceMode) {
+      return res.status(503).json({ 
+        message: "Lottery entries are temporarily paused for maintenance. Check back soon!" 
+      });
+    }
+
     const { name, email, phone, selectedNumbers, eventValue, eventName } = req.body;
     const numbers = normalizeNumbers(selectedNumbers);
 
-    if (numbers.length === 0) {
-      return res.status(400).json({ message: "No numbers selected" });
-    }
+    if (numbers.length === 0) return res.status(400).json({ message: "No numbers selected" });
 
     const eventDoc = await Event.findById(eventValue);
-    
-    if (!eventDoc) {
-      return res.status(404).json({ message: "The selected prize no longer exists." });
-    }
-
+    if (!eventDoc) return res.status(404).json({ message: "Prize not found." });
     if (eventDoc.drawStatus === 'drawn' || !eventDoc.active) {
-      return res.status(400).json({ message: "This raffle is closed. No more entries allowed." });
+      return res.status(400).json({ message: "This raffle is closed." });
     }
 
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
     const existingPayments = await Payment.find({ 
       eventValue: eventValue, 
-      status: { $in: ["successful", "pending"] },
+      $or: [
+        { status: "successful" },
+        { status: "PAID" },
+        { status: "pending", createdAt: { $gt: fifteenMinsAgo } }
+      ]
     }, { selectedNumbers: 1 });
 
     const usageCount = {};
@@ -52,7 +59,6 @@ export default async function initiatePayment(req, res) {
 
     const ticketPrice = Number(eventDoc.price) || 1000; 
     const calculatedAmount = numbers.length * ticketPrice;
-
     const token = await getMonnifyToken();
     const paymentReference = `NICKET-${Date.now()}`;
 
@@ -75,15 +81,11 @@ export default async function initiatePayment(req, res) {
       }
     };
 
-    const response = await axios.post(
-      `${BASE_URL}/api/v1/merchant/transactions/init-transaction`,
-      payload,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    const response = await axios.post(`${BASE_URL}/api/v1/merchant/transactions/init-transaction`, payload, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-    if (!response.data.requestSuccessful) {
-      return res.status(400).json({ message: "Monnify connection failed" });
-    }
+    if (!response.data.requestSuccessful) return res.status(400).json({ message: "Payment gateway error" });
 
     const txnRef = response.data.responseBody.transactionReference;
 
@@ -113,7 +115,7 @@ export default async function initiatePayment(req, res) {
     });
 
   } catch (err) {
-    console.error("❌ initiatePayment Server Error:", err.message);
-    return res.status(500).json({ message: "Unable to process payment request." });
+    console.error("❌ initiatePayment Error:", err.message);
+    return res.status(500).json({ message: "Server error during payment initiation" });
   }
 }
