@@ -62,11 +62,20 @@ router.post("/:id/draw", verifyToken, verifyAdmin, async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: "Event not found" });
 
+    if (event.drawStatus === "drawn") {
+      return res.status(400).json({ message: "Draw already executed for this event" });
+    }
+
     await Event.findByIdAndUpdate(eventId, {
       winningNumber,
       drawStatus: "drawn",
       active: false
     });
+
+    await Payment.updateMany(
+      { eventValue: eventId },
+      { $unset: { "metadata.winner": "" } }
+    );
 
     await Payment.updateMany(
       {
@@ -80,7 +89,7 @@ router.post("/:id/draw", verifyToken, verifyAdmin, async (req, res) => {
     await Payment.updateMany(
       {
         eventValue: eventId,
-        selectedNumbers: { $ne: winningNumber },
+        selectedNumbers: { $nin: [winningNumber] },
         status: { $in: ["successful", "PAID"] }
       },
       { $set: { "metadata.winner": false } }
