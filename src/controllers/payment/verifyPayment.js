@@ -13,7 +13,7 @@ export default async function verifyPayment(req, res) {
     }
 
     const event = await Event.findById(payment.eventValue);
-    const standardizedMetadata = payment.metadata || payment.metaData || { winner: false };
+    const standardizedMetadata = payment.metadata || payment.metaData || {};
     const sendResponse = (p, e) => {
       res.json({
         success: true,
