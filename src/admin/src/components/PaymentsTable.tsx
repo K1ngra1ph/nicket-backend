@@ -120,7 +120,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
     <div className="space-y-6 animate-fade-in pb-10">
       <div className="flex flex-col md:flex-row justify-between items-end gap-6">
         <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-gray-900 underline decoration-indigo-600 underline-offset-8">Tickets Dashboard</h2>
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-gray-900 underline decoration-indigo-600 underline-offset-8">Payments Dashboard</h2>
             {isRefreshing && <RefreshCcw size={20} className="text-indigo-600 animate-spin" />}
         </div>
         <div className="flex gap-2">
@@ -136,13 +136,13 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
         </div>
         <div className="flex gap-2 flex-wrap">
             <select className="px-5 py-3.5 rounded-2xl bg-white border border-gray-100 font-black text-[10px] uppercase tracking-widest" value={filterResult} onChange={(e) => setFilterResult(e.target.value)}>
-                <option value="all">Any Outcome</option>
+                <option value="all">All Results</option>
                 <option value="won">Win</option>
-                <option value="lose">Loss</option>
-                <option value="waiting">Wait</option>
+                <option value="lose">Lost</option>
+                <option value="waiting">Pending Result</option>
             </select>
             <select className="px-5 py-3.5 rounded-2xl bg-white border border-gray-100 font-black text-[10px] uppercase tracking-widest" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                <option value="all">Any Status</option>
+                <option value="all">All Payments</option>
                 <option value="successful">Paid</option>
                 <option value="pending">Pending</option>
                 <option value="failed">Failed</option>
@@ -161,9 +161,10 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-50">
                 <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400">Player Record</th>
-                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400">Prize Event</th>
-                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400 text-center">Status</th>
-                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400 text-right pr-14">Detail</th>
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400">Prize</th>
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400 text-center">Draw Result</th>
+                <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400 text-center">Payment Status</>
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400 text-right pr-14">View</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -181,7 +182,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
                     </td>
                     <td className="px-6 py-5 text-center">
                         {isWon ? <span className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[9px] font-black">WON</span> :
-                         finished ? <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-lg text-[9px] font-black">STRICT LOSE</span> :
+                         finished ? <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-lg text-[9px] font-black">LOSE</span> :
                          <span className="bg-amber-100 text-amber-600 px-3 py-1 rounded-lg text-[9px] font-black italic">WAITING</span>}
                     </td>
                     <td className="px-6 py-5 text-right pr-12">
@@ -208,7 +209,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
            <div className="bg-white rounded-[50px] w-full max-w-lg shadow-2xl overflow-hidden border border-white">
              <div className="p-10 bg-gray-900 text-white">
                <div className="flex justify-between items-start mb-6">
-                   <h3 className="text-3xl font-black italic tracking-tighter">Review Detail</h3>
+                   <h3 className="text-3xl font-black italic tracking-tighter">Player Detail</h3>
                    <button onClick={() => setSelectedPayment(null)} className="p-2 rounded-full hover:bg-white/10"><X/></button>
                </div>
                <p className="text-[9px] font-black text-white/40 tracking-[0.4em] uppercase">{selectedPayment.paymentReference}</p>
@@ -218,12 +219,12 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
                 <DetailRow icon={User} label="Record For" value={selectedPayment.name}/>
                 <DetailRow icon={Calendar} label="Date/Time" value={new Date(selectedPayment.createdAt).toLocaleString()}/>
                 <DetailRow icon={Trophy} label="Prize" value={getEventName(selectedPayment.eventValue)}/>
-                <DetailRow icon={Bookmark} label="Outcome" value={
+                <DetailRow icon={Bookmark} label="Result" value={
                     (selectedPayment.metadata?.winner === true || selectedPayment.metadata?.winner === "true") 
                     ? <span className="text-green-500 font-black italic">WON 💎</span>
                     : events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn'
-                    ? <span className="text-rose-500 font-bold uppercase italic tracking-widest">Lost Entry</span>
-                    : <span className="text-amber-500 font-bold italic tracking-tighter">Awaiting Logic Sync...</span>
+                    ? <span className="text-rose-500 font-bold uppercase italic tracking-widest">Lost</span>
+                    : <span className="text-amber-500 font-bold italic tracking-tighter">Awaiting Draw</span>
                 }/>
 
                 <div className="pt-6">
@@ -248,7 +249,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
                         ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
                         : 'bg-rose-600 text-white shadow-xl shadow-rose-200'}`}
                 >
-                  <RotateCcw size={14}/> {events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn' ? "Locked" : "Refund Money"}
+                  <RotateCcw size={14}/> {events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn' ? "Locked" : "Refund"}
                 </button>
                )}
                <button onClick={() => setSelectedPayment(null)} className="flex-1 p-5 bg-gray-50 border border-gray-100 text-gray-500 font-black rounded-[25px] uppercase text-[10px] tracking-widest">Back</button>
