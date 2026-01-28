@@ -27,19 +27,14 @@ export default async function initiatePayment(req, res) {
     if (numbers.length === 0) return res.status(400).json({ message: "No numbers selected" });
 
     const eventDoc = await Event.findById(eventValue);
-    if (!eventDoc) return res.status(404).json({ message: "Prize not found." });
+    if (!eventDoc) return res.status(404).json({ message: "Selected prize not found in database." });
     if (eventDoc.drawStatus === 'drawn' || !eventDoc.active) {
-      return res.status(400).json({ message: "This raffle is closed." });
+      return res.status(400).json({ message: "This raffle is now closed. No more entries allowed." });
     }
 
-    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
     const existingPayments = await Payment.find({ 
       eventValue: eventValue, 
-      $or: [
-        { status: "successful" },
-        { status: "PAID" },
-        { status: "pending", createdAt: { $gt: fifteenMinsAgo } }
-      ]
+      status: { $in: ["successful", "PAID"] }
     }, { selectedNumbers: 1 });
 
     const usageCount = {};
@@ -50,9 +45,10 @@ export default async function initiatePayment(req, res) {
     });
 
     for (let num of numbers) {
-      if ((usageCount[num] || 0) >= SLOT_LIMIT) {
+      const currentUsage = usageCount[num] || 0;
+      if (currentUsage >= SLOT_LIMIT) {
         return res.status(400).json({ 
-          message: `Number ${num} just sold out! Please go back and pick another number.` 
+          message: `Oversold: Number ${num} has already reached its 10-ticket limit. Please pick another number.` 
         });
       }
     }
@@ -85,7 +81,9 @@ export default async function initiatePayment(req, res) {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    if (!response.data.requestSuccessful) return res.status(400).json({ message: "Payment gateway error" });
+    if (!response.data.requestSuccessful) {
+        return res.status(400).json({ message: "Monnify connection error. Please try again." });
+    }
 
     const txnRef = response.data.responseBody.transactionReference;
 
@@ -116,6 +114,6 @@ export default async function initiatePayment(req, res) {
 
   } catch (err) {
     console.error("❌ initiatePayment Error:", err.message);
-    return res.status(500).json({ message: "Server error during payment initiation" });
+    return res.status(500).json({ message: "System failure: Unable to initiate raffle entry." });
   }
 }
