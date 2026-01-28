@@ -48,7 +48,7 @@ export default async function initiatePayment(req, res) {
       const currentUsage = usageCount[num] || 0;
       if (currentUsage >= SLOT_LIMIT) {
         return res.status(400).json({ 
-          message: `Oversold: Number ${num} has already reached its 10-ticket limit. Please pick another number.` 
+          message: `Oversold: Number ${num} just sold out! Please go back and pick another number.` 
         });
       }
     }
