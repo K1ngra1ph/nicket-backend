@@ -190,7 +190,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
                     <td className="px-6 py-5 text-center">
                         {isWon ? <span className="bg-green-600 text-white p-1 px-3 rounded-md text-[9px] font-black uppercase">WON</span> :
                          finished ? <span className="bg-rose-100 text-rose-500 p-1 px-3 rounded-md text-[9px] font-black uppercase">LOSE</span> :
-                         <span className="bg-amber-100 text-amber-700 p-1 px-3 rounded-md text-[9px] font-black uppercase tracking-widest italic animate-pulse">WAIT</span>}
+                         <span className="bg-amber-100 text-amber-700 p-1 px-3 rounded-md text-[9px] font-black uppercase tracking-widest italic animate-pulse">WAITING</span>}
                     </td>
                     <td className="px-6 py-5 text-center uppercase text-[10px] font-black tracking-widest">
                        <span className={p.status === 'successful' ? 'text-emerald-500' : p.status === 'refunded' ? 'text-indigo-400' : 'text-amber-500'}>{p.status}</span>
@@ -229,8 +229,8 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
              
              <div className="px-12 py-10 space-y-1">
                 <DetailRow icon={User} label="Record Name" value={selectedPayment.name}/>
-                <DetailRow icon={Mail} label="Payer Contact" value={selectedPayment.email}/>
-                <DetailRow icon={Bookmark} label="Bank Reference" value={selectedPayment.paymentReference}/>
+                <DetailRow icon={Mail} label="Player Contact" value={selectedPayment.email}/>
+                <DetailRow icon={Bookmark} label="Ticket ID" value={selectedPayment.paymentReference}/>
                 <DetailRow icon={Calendar} label="Transaction Datetime" value={new Date(selectedPayment.createdAt).toLocaleString()}/>
                 <DetailRow icon={Trophy} label="Prize" value={getEventName(selectedPayment.eventValue)}/>
                 <DetailRow icon={RotateCcw} label="Draw Outcome" value={
@@ -261,7 +261,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
                     ${selectedEventDrawn ? 'bg-gray-50 text-gray-300 cursor-not-allowed border' : 'bg-rose-600 text-white shadow-xl hover:scale-[0.98]'}`}
                 >
                   {selectedEventDrawn ? <AlertTriangle size={14}/> : <RotateCcw size={16}/>}
-                  {selectedEventDrawn ? "Draw Complete (LOCKED)" : "Proceed to Bank Refund"}
+                  {selectedEventDrawn ? "Draw Complete (LOCKED)" : "Refund"}
                 </button>
                )}
                <button onClick={() => setSelectedPayment(null)} className="flex-1 p-5 bg-white border border-gray-200 text-gray-500 font-black rounded-[32px] uppercase text-[10px] tracking-widest">Back</button>
