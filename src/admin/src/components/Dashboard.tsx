@@ -48,7 +48,7 @@ const Dashboard: React.FC<DashboardProps> = ({ events, onViewChange }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const successfulPayments = payments.filter(p => p.status === 'successful' || p.status === 'PAID');
+  const successfulPayments = payments.filter(p => p.status === 'successful' || p.status === 'PAID' || p.status as string === 'SUCCESSFUL');
   
   const totalRevenue = successfulPayments.reduce((acc, curr) => acc + curr.amountPaid, 0);
   const totalActiveEvents = events.filter(e => e.active).length;
