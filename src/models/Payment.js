@@ -8,10 +8,11 @@ const paymentSchema = new mongoose.Schema(
     amount: { type: Number, required: true },
     amountPaid: { type: Number, default: 0 },
 
-    eventValue: { type: String, required: true },
+    eventValue: { type: String, required: true, index: true }, 
+    eventName: { type: String },
 
     name: { type: String, required: true },
-    email: { type: String, required: true },
+    email: { type: String, required: true, index: true },
     phone: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
@@ -28,18 +29,24 @@ const paymentSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "successful", "failed"],
+      enum: ["pending", "successful", "failed", "refunded"],
       default: "pending",
       index: true
-    }
+    },
+
+    metadata: {
+        winner: { type: Boolean, default: false },
+        playerEmail: { type: String }
+    },
+    failureReason: { type: String, default: null } 
   },
   { timestamps: true }
 );
-
 paymentSchema.statics.getWinners = function (eventValue) {
   return this.find({
     eventValue,
-    "status": "successful"
+    "status": { $in: ["successful", "PAID"] },
+    "metadata.winner": true
   });
 };
 
