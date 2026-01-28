@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Search, FileText, Eye, X, ChevronLeft, ChevronRight, Trophy, RotateCcw, Hash, User, Calendar, CreditCard } from 'lucide-react';
+import { Mail, Search, FileText, Eye, X, ChevronLeft, ChevronRight, Trophy, RotateCcw, Hash, User, Calendar, CreditCard, Phone, Bookmark, Clock, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { PaymentData, EventData } from '../types';
 
 interface PaymentsTableProps {
@@ -9,6 +9,7 @@ interface PaymentsTableProps {
 const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEvent, setFilterEvent] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -16,275 +17,246 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ events }) => {
   const [selectedPayment, setSelectedPayment] = useState<PaymentData | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  
   const getToken = () => localStorage.getItem('token');
 
-  // 1. DATA FETCHING
-  const fetchPayments = async () => {
+  const fetchPayments = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    setIsRefreshing(true);
     try {
-      setLoading(true);
-      const token = getToken();
       const response = await fetch('/api/payments', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${getToken()}` }
       }); 
-      if (!response.ok) throw new Error('Failed to fetch');
-      const data = await response.json();
-      setPayments(data);
-    } catch (error) {
-      console.error("Error fetching payments:", error);
-    } finally {
+      if (response.ok) {
+        const data = await response.json();
+        setPayments(data);
+      }
+    } catch (error) { console.error("Sync Error:", error); } 
+    finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => { fetchPayments(); }, []);
+  useEffect(() => { if (events.some(e => e.drawStatus === 'drawn')) fetchPayments(true); }, [events]);
 
-  // Reset pagination on search/filter change
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterEvent, filterStatus, filterResult]);
-
-  // 2. ADMINISTRATIVE ACTIONS
   const handleRefund = async (paymentId: string) => {
-    if(!window.confirm("Are you sure you want to refund this payment? This cannot be undone.")) return;
+    if(!window.confirm("Verify: Do you want to process a bank refund? This cannot be undone.")) return;
     try {
-      const token = getToken();
       const response = await fetch(`/api/payments/${paymentId}/refund`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` }
       });
+      const result = await response.json();
       if (response.ok) {
-        alert("Refund processed successfully");
+        alert("✅ Refund successfully completed.");
         fetchPayments();
         setSelectedPayment(null);
       } else {
-        alert("Failed to process refund");
+        alert(`❌ Error: ${result.message}`);
       }
-    } catch (error) {
-      console.error("Refund error", error);
-    }
+    } catch (error) { alert("Communication error."); }
   };
 
-  const getEventName = (eventId: string) => {
-    const event = events.find(e => e._id === eventId);
-    return event ? event.name : eventId;
-  };
+  const getEventName = (id: string) => events.find(e => e._id === id)?.name || "Nicket Entry";
 
-  // 3. EXPORT LOGIC
   const handleExportEmails = () => {
-    const uniqueEmails = Array.from(new Set(filteredPayments.map(p => p.email)));
-    if (uniqueEmails.length === 0) return alert("No emails found.");
-    const blob = new Blob([uniqueEmails.join('\n')], { type: 'text/plain' });
+    const uniqueEmails = Array.from(new Set(filteredPayments.map(p => p.email))).join('\n');
+    if (!uniqueEmails) return alert("Nothing to export.");
+    const blob = new Blob([uniqueEmails], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `emails_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const a = document.createElement('a'); a.href = url; a.download = `players_list.txt`; a.click();
   };
 
-  const handleExportDetails = () => {
-    const headers = ["Ref", "Player", "Email", "Event", "Amount", "Status", "Result", "Numbers", "Date"];
-    const rows = filteredPayments.map(p => [
-      p.paymentReference, p.name, p.email, getEventName(p.eventValue), p.amountPaid, p.status, 
-      p.metadata?.winner ? 'WON' : 'LOSE', p.selectedNumbers.join('|'), new Date(p.createdAt).toLocaleDateString()
-    ]);
+  const handleExportCSV = () => {
+    const headers = ["Date", "Player", "Email", "Event", "Amount", "Reference", "Status", "Result"];
+    const rows = filteredPayments.map(p => {
+        const win = p.metadata?.winner === true || p.metadata?.winner === "true";
+        const finished = events.find(e => e._id === p.eventValue)?.drawStatus === 'drawn';
+        return [
+            new Date(p.createdAt).toLocaleString(), p.name, p.email, getEventName(p.eventValue),
+            p.amountPaid, p.paymentReference, p.status, win ? "WON" : finished ? "LOST" : "WAITING"
+        ];
+    });
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `nicket_report_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Reporting_Sheet.csv`; a.click();
   };
 
   const filteredPayments = payments.filter(p => {
     const isWinner = p.metadata?.winner === true || p.metadata?.winner === "true";
-    const isLost = p.metadata?.winner === false || p.metadata?.winner === "false";
-    
-    const searchString = [
-        p.paymentReference, p.name, p.email, p.phone, p.amountPaid, 
-        getEventName(p.eventValue), p.selectedNumbers.join(' ')
-    ].join(' ').toLowerCase();
+    const drawFinished = events.find(e => e._id === p.eventValue)?.drawStatus === 'drawn';
+    const numsString = (p.selectedNumbers || []).join(' ');
+    const searchString = `${p.paymentReference} ${p.name} ${p.email} ${getEventName(p.eventValue)} ${numsString}`.toLowerCase();
 
     const matchesSearch = searchString.includes(searchTerm.toLowerCase());
     const matchesEvent = filterEvent === 'all' || p.eventValue === filterEvent;
     const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
-    
     let matchesResult = true;
     if (filterResult === 'won') matchesResult = isWinner;
-    else if (filterResult === 'lose') matchesResult = isLost;
-    else if (filterResult === 'waiting') matchesResult = !isWinner && !isLost;
+    else if (filterResult === 'lose') matchesResult = !isWinner && drawFinished;
+    else if (filterResult === 'waiting') matchesResult = !isWinner && !drawFinished;
     
     return matchesSearch && matchesEvent && matchesStatus && matchesResult;
   });
 
-  // 5. PAGINATION CALCULATIONS
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredPayments.slice(indexOfFirstItem, indexOfLastItem);
+  const currentItems = filteredPayments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
 
-  const DetailRow = ({ label, value, icon: Icon }: { label: string, value: React.ReactNode, icon?: any }) => (
-    <div className="flex flex-col border-b border-gray-50 py-3 last:border-0">
-      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-        {Icon && <Icon size={10} />} {label}
-      </span>
-      <span className="text-sm text-gray-800 font-bold break-all mt-1">{value || '-'}</span>
+  const DetailRow = ({ label, value, icon: Icon }: { label: string, value: any, icon?: any }) => (
+    <div className="flex justify-between items-center py-4 border-b border-gray-50 last:border-0">
+      <div className="flex items-center gap-3 text-gray-400">
+        {Icon && <Icon size={16}/>}
+        <span className="text-xs font-bold uppercase tracking-widest">{label}</span>
+      </div>
+      <span className="text-sm font-black text-gray-800 text-right truncate max-w-[200px]">{value || '---'}</span>
     </div>
   );
 
-  if (loading) return <div className="p-20 text-center animate-pulse text-gray-400 font-bold uppercase tracking-widest">Synchronizing Bank Data...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center font-black uppercase text-gray-300 animate-pulse tracking-[0.4em]">Accounting Portal Loading...</div>;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header & Export Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Bets & Transactions</h2>
-          <p className="text-gray-500 text-sm font-medium">Manage player entries and financial records.</p>
+    <div className="space-y-6 animate-fade-in pb-10">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+        <div className="flex items-center gap-3">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-gray-900 underline decoration-indigo-600 underline-offset-8">Tickets Dashboard</h2>
+            {isRefreshing && <RefreshCcw size={20} className="text-indigo-600 animate-spin" />}
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
-           <button onClick={handleExportEmails} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 transition shadow-sm"><Mail size={16} /> Emails</button>
-           <button onClick={handleExportDetails} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition shadow-sm"><FileText size={16} /> CSV Report</button>
+        <div className="flex gap-2">
+           <button onClick={handleExportEmails} className="bg-white border border-gray-200 text-gray-600 p-2.5 px-6 rounded-2xl text-[10px] font-black uppercase shadow-sm hover:bg-gray-50">Emails</button>
+           <button onClick={handleExportCSV} className="bg-indigo-600 text-white p-2.5 px-6 rounded-2xl text-[10px] font-black uppercase shadow-xl flex items-center gap-2 tracking-widest"><FileText size={14}/> Download Report</button>
         </div>
       </div>
 
-      {/* Advanced Filter Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-4">
+      <div className="bg-white p-6 rounded-[35px] border border-gray-100 flex flex-col xl:flex-row gap-5 shadow-sm">
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input type="text" placeholder="Search Reference, Player, or Numbers..." className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-100 bg-gray-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18}/>
+          <input type="text" placeholder="Find Player, Numbers or Reference ID..." className="w-full pl-12 pr-4 py-3.5 rounded-2xl border-none bg-gray-50 font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-100 transition" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <select className="px-4 py-3 rounded-2xl border border-gray-100 bg-white font-bold text-xs" value={filterResult} onChange={(e) => setFilterResult(e.target.value)}>
-                <option value="all">Result: All</option>
-                <option value="won">🏆 Winners</option>
-                <option value="lose">❌ Lost</option>
-                <option value="waiting">⏳ Waiting</option>
+        <div className="flex gap-2 flex-wrap">
+            <select className="px-5 py-3.5 rounded-2xl bg-white border border-gray-100 font-black text-[10px] uppercase tracking-widest" value={filterResult} onChange={(e) => setFilterResult(e.target.value)}>
+                <option value="all">Any Outcome</option>
+                <option value="won">Win</option>
+                <option value="lose">Loss</option>
+                <option value="waiting">Wait</option>
             </select>
-            <select className="px-4 py-3 rounded-2xl border border-gray-100 bg-white font-bold text-xs" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                <option value="all">Status: All</option>
-                <option value="successful">Successful</option>
+            <select className="px-5 py-3.5 rounded-2xl bg-white border border-gray-100 font-black text-[10px] uppercase tracking-widest" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="all">Any Status</option>
+                <option value="successful">Paid</option>
                 <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
                 <option value="refunded">Refunded</option>
             </select>
-            <select className="px-4 py-3 rounded-2xl border border-gray-100 bg-white font-bold text-xs" value={filterEvent} onChange={(e) => setFilterEvent(e.target.value)}>
+            <select className="px-5 py-3.5 rounded-2xl bg-white border border-gray-100 font-black text-[10px] uppercase max-w-[150px]" value={filterEvent} onChange={(e) => setFilterEvent(e.target.value)}>
                 <option value="all">All Events</option>
                 {events.map(e => (<option key={e._id} value={e._id}>{e.name}</option>))}
             </select>
         </div>
       </div>
 
-      {/* Main Data Table */}
-      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400">Player Record</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400">Raffle Event</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400 text-center">Draw Result</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400 text-center">Payment Status</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400 text-right">View</th>
+              <tr className="bg-gray-50 border-b border-gray-50">
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400">Player Record</th>
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400">Prize Event</th>
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400 text-center">Status</th>
+                <th className="px-6 py-6 text-[10px] font-black uppercase text-gray-400 text-right pr-14">Detail</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {currentItems.map((p) => (
-                <tr key={p._id} className="hover:bg-indigo-50/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-bold text-gray-900">{p.name}</div>
-                    <div className="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">{p.paymentReference}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1.5 rounded-lg uppercase">
-                        {getEventName(p.eventValue)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    {(p.metadata?.winner === true || p.metadata?.winner === "true") ? (
-                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">
-                        <Trophy size={10} /> Winner
-                      </span>
-                    ) : (p.metadata?.winner === false || p.metadata?.winner === "false") ? (
-                      <span className="bg-rose-50 text-rose-600 px-3 py-1 rounded-full text-[10px] font-black uppercase border border-rose-100">Lose</span>
-                    ) : (
-                      <span className="bg-gray-100 text-gray-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">Waiting</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border
-                      ${p.status === 'successful' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                        p.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                        'bg-gray-50 text-gray-500 border-gray-100'}`}>
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => setSelectedPayment(p)} className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-xl transition shadow-sm border border-transparent hover:border-indigo-100"><Eye size={20}/></button>
-                  </td>
-                </tr>
-              ))}
+              {currentItems.map((p) => {
+                const isWon = p.metadata?.winner === true || p.metadata?.winner === "true";
+                const finished = events.find(e => e._id === p.eventValue)?.drawStatus === 'drawn';
+                return (
+                  <tr key={p._id} className="hover:bg-indigo-50/20 transition-all cursor-default">
+                    <td className="px-6 py-5">
+                      <div className="font-black text-gray-800 text-sm tracking-tighter">{p.name}</div>
+                      <div className="text-[9px] font-mono text-gray-400 uppercase tracking-tighter">{p.paymentReference}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md uppercase tracking-widest">{getEventName(p.eventValue)}</span>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                        {isWon ? <span className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[9px] font-black">WON</span> :
+                         finished ? <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-lg text-[9px] font-black">STRICT LOSE</span> :
+                         <span className="bg-amber-100 text-amber-600 px-3 py-1 rounded-lg text-[9px] font-black italic">WAITING</span>}
+                    </td>
+                    <td className="px-6 py-5 text-right pr-12">
+                       <button onClick={() => setSelectedPayment(p)} className="p-3 bg-white border border-gray-100 shadow-sm rounded-2xl text-gray-400 hover:text-indigo-600 hover:scale-110 transition"><Eye size={18}/></button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-
-        {/* Pagination Footer */}
-        <div className="flex items-center justify-between px-8 py-5 bg-gray-50/50 border-t border-gray-100">
-             <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-               Page {currentPage} of {totalPages}
-             </div>
-             <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(prev => Math.max(prev-1, 1))} disabled={currentPage === 1} className="p-2 rounded-xl border border-gray-200 bg-white disabled:opacity-30 hover:bg-indigo-50 hover:text-indigo-600 transition"><ChevronLeft size={18}/></button>
-                <button onClick={() => setCurrentPage(prev => Math.min(prev+1, totalPages))} disabled={currentPage === totalPages} className="p-2 rounded-xl border border-gray-200 bg-white disabled:opacity-30 hover:bg-indigo-50 hover:text-indigo-600 transition"><ChevronRight size={18}/></button>
-             </div>
+        <div className="p-8 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+          <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Matches found: {filteredPayments.length}</p>
+          <div className="flex gap-2">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage===1} className="p-3 bg-white border border-gray-200 rounded-2xl disabled:opacity-20 hover:text-indigo-600"><ChevronLeft size={20}/></button>
+            <div className="px-6 py-3 flex items-center font-black text-[10px] uppercase text-indigo-600 bg-indigo-50 rounded-2xl">Pg {currentPage} / {totalPages}</div>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage===totalPages} className="p-3 bg-white border border-gray-200 rounded-2xl disabled:opacity-20 hover:text-indigo-600"><ChevronRight size={20}/></button>
+          </div>
         </div>
       </div>
 
-      {/* Transaction Details Modal */}
       {selectedPayment && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
-            <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-indigo-600 text-white">
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter italic">Entry Detail Review</h3>
-                <p className="text-indigo-100 text-xs font-medium uppercase mt-1">Status: {selectedPayment.status}</p>
-              </div>
-              <button onClick={() => setSelectedPayment(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition"><X size={24} /></button>
-            </div>
-            
-            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
-               <DetailRow icon={User} label="Player Name" value={selectedPayment.name} />
-               <DetailRow icon={Mail} label="Player Email" value={selectedPayment.email} />
-               <DetailRow icon={Calendar} label="Event Name" value={getEventName(selectedPayment.eventValue)} />
-               <DetailRow icon={CreditCard} label="Paid Amount" value={`₦${selectedPayment.amountPaid.toLocaleString()}`} />
-               <DetailRow icon={FileText} label="Reference" value={selectedPayment.paymentReference} />
-               <DetailRow icon={Trophy} label="Draw Outcome" value={
-                 (selectedPayment.metadata?.winner === true || selectedPayment.metadata?.winner === "true") 
-                 ? <span className="text-green-600">WINNER 🏆</span> 
-                 : <span className="text-gray-400">NO WIN</span>
-               } />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[500] flex items-center justify-center p-6 animate-fade-in">
+           <div className="bg-white rounded-[50px] w-full max-w-lg shadow-2xl overflow-hidden border border-white">
+             <div className="p-10 bg-gray-900 text-white">
+               <div className="flex justify-between items-start mb-6">
+                   <h3 className="text-3xl font-black italic tracking-tighter">Review Detail</h3>
+                   <button onClick={() => setSelectedPayment(null)} className="p-2 rounded-full hover:bg-white/10"><X/></button>
+               </div>
+               <p className="text-[9px] font-black text-white/40 tracking-[0.4em] uppercase">{selectedPayment.paymentReference}</p>
+             </div>
+             
+             <div className="px-10 py-6">
+                <DetailRow icon={User} label="Record For" value={selectedPayment.name}/>
+                <DetailRow icon={Calendar} label="Date/Time" value={new Date(selectedPayment.createdAt).toLocaleString()}/>
+                <DetailRow icon={Trophy} label="Prize" value={getEventName(selectedPayment.eventValue)}/>
+                <DetailRow icon={Bookmark} label="Outcome" value={
+                    (selectedPayment.metadata?.winner === true || selectedPayment.metadata?.winner === "true") 
+                    ? <span className="text-green-500 font-black italic">WON 💎</span>
+                    : events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn'
+                    ? <span className="text-rose-500 font-bold uppercase italic tracking-widest">Lost Entry</span>
+                    : <span className="text-amber-500 font-bold italic tracking-tighter">Awaiting Logic Sync...</span>
+                }/>
 
-               {/* Numbers Section */}
-               <div className="col-span-1 md:col-span-2 pt-6 pb-2">
-                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Hash size={10}/> Player Selections</span>
-                 <div className="flex gap-2 flex-wrap mt-3">
+                <div className="pt-6">
+                  <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-3 italic">Selection Stub</div>
+                  <div className="flex flex-wrap gap-2">
                     {selectedPayment.selectedNumbers?.map((n, i) => (
-                      <span key={i} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-lg font-black shadow-md border border-indigo-500">
+                      <span key={i} className="bg-gray-50 border border-gray-100 text-gray-700 h-10 w-11 rounded-xl flex items-center justify-center font-black text-xs shadow-inner">
                         {n}
                       </span>
                     ))}
-                 </div>
-               </div>
-            </div>
+                  </div>
+                </div>
+             </div>
 
-            <div className="p-8 bg-gray-50/50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
-              {selectedPayment.status === "successful" && (
-                <button onClick={() => handleRefund(selectedPayment._id)} className="flex items-center justify-center gap-2 px-6 py-3.5 bg-rose-50 text-rose-600 font-black text-xs uppercase rounded-2xl hover:bg-rose-100 transition border border-rose-100">
-                  <RotateCcw size={14} /> Refund Player
+             <div className="px-10 pb-10 flex gap-2">
+               {selectedPayment.status === "successful" && (
+                <button 
+                  onClick={() => handleRefund(selectedPayment._id)} 
+                  disabled={events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn'}
+                  className={`flex-1 flex items-center justify-center gap-2 p-5 font-black rounded-[25px] uppercase text-[10px] tracking-widest 
+                    ${events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn' 
+                        ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
+                        : 'bg-rose-600 text-white shadow-xl shadow-rose-200'}`}
+                >
+                  <RotateCcw size={14}/> {events.find(e => e._id === selectedPayment.eventValue)?.drawStatus === 'drawn' ? "Locked" : "Refund Money"}
                 </button>
-              )}
-              <button onClick={() => setSelectedPayment(null)} className="px-10 py-3.5 bg-white border border-gray-200 text-gray-700 font-black text-xs uppercase rounded-2xl hover:bg-gray-100 transition shadow-sm">Close Record</button>
-            </div>
-          </div>
+               )}
+               <button onClick={() => setSelectedPayment(null)} className="flex-1 p-5 bg-gray-50 border border-gray-100 text-gray-500 font-black rounded-[25px] uppercase text-[10px] tracking-widest">Back</button>
+             </div>
+           </div>
         </div>
       )}
     </div>
   );
 };
-
 export default PaymentsTable;
