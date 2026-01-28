@@ -1,5 +1,6 @@
 import express from "express";
 import Payment from "../models/Payment.js";
+import Event from "../models/Event.js";
 import initiatePayment from "../controllers/payment/initiatePayment.js";
 import verifyPayment from "../controllers/payment/verifyPayment.js";
 import redirectAfterPayment from "../controllers/payment/redirectAfterPayment.js";
@@ -16,13 +17,13 @@ router.get("/get-payment-reference", getPaymentReference);
 
 router.get("/recent-winners", async (req, res) => {
   try {
-    const winners = await Payment.find({ 
-      status: { $in: ["successful", "PAID"] }, 
-      "metadata.winner": true 
+    const winners = await Payment.find({
+      status: { $in: ["successful", "PAID"] },
+      "metadata.winner": true
     })
-    .sort({ updatedAt: -1 })
-    .limit(16)
-    .select("name eventName paymentReference");
+      .sort({ updatedAt: -1 })
+      .limit(16)
+      .select("name eventName paymentReference");
 
     res.json(winners);
   } catch (err) {
@@ -42,21 +43,39 @@ router.get("/", verifyToken, verifyAdmin, async (req, res) => {
 router.post("/:id/refund", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id);
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
-    if (payment.status === 'refunded') return res.status(400).json({ message: "Already refunded" });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    if (payment.status === "refunded") {
+      return res.status(400).json({ message: "Payment already refunded" });
+    }
+
+    const event = await Event.findById(payment.eventValue);
+    if (event?.drawStatus === "drawn") {
+      return res.status(400).json({
+        message: "Refund denied: Raffle draw has already been executed for this event."
+      });
+    }
 
     await initiateMonnifyRefund(
       payment.transactionReference,
       payment.amountPaid,
-      "Customer request/Event cancelled"
+      "Admin refund request"
     );
-    
-    payment.status = "refunded"; 
+
+    payment.status = "refunded";
     await payment.save();
 
-    res.json({ message: "Refund processed successfully", payment });
+    res.json({
+      message: "Money returned successfully",
+      payment
+    });
+
   } catch (err) {
-    res.status(500).json({ message: err.message || "Internal Refund Error" });
+    res.status(500).json({
+      message: err.message || "Internal refund processing error"
+    });
   }
 });
 
