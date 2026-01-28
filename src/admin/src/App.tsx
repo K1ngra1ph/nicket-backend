@@ -24,7 +24,6 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [events, setEvents] = useState<EventData[]>([]);
 
-  // --- AUTH EFFECTS ---
   useEffect(() => {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('token');
@@ -53,7 +52,6 @@ const App: React.FC = () => {
     localStorage.setItem('nicket_current_view', currentView);
   }, [currentView]);
 
-  // --- DATA FETCHING ---
   useEffect(() => {
     if (token) {
         fetch('/api/events', {
@@ -80,7 +78,6 @@ const App: React.FC = () => {
     }
   }, [currentView, token]);
 
-  // --- HANDLERS ---
   const handleLoginSuccess = (user: UserData, authToken: string) => {
     localStorage.setItem('token', authToken);
     setToken(authToken);
@@ -173,7 +170,10 @@ const App: React.FC = () => {
           </div>
 
           {currentView === 'dashboard' && currentUser.permissions.includes('dashboard') && (
-            <Dashboard events={events} />
+            <Dashboard 
+              events={events} 
+              onViewChange={(v) => setCurrentView(v as ViewState)} 
+            />
           )}
           
           {currentView === 'events' && currentUser.permissions.includes('events') && (
