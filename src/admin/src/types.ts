@@ -27,7 +27,7 @@ export interface PaymentData {
   phone: string;
   userId?: string;
   selectedNumbers: number[];
-  status: 'pending' | 'successful' | 'failed' | 'refunded';
+  status: 'pending' | 'successful' | 'failed' | 'refunded' | 'PAID' | 'SUCCESSFUL';
   createdAt: string;
   updatedAt: string;
   refunded?: boolean; 
