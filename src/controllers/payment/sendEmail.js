@@ -9,10 +9,12 @@ export default async function sendEmail(payment) {
       name: payment.name || payment.fullName || "Nicket User",
       email: payment.email,
       amount: payment.totalValue || payment.amount || payment.amountPaid || 0,
-      transactionId: payment.paymentReference || "N/A"
+      transactionId: payment.paymentReference || "N/A",
+      currency: payment.currency || "₦", 
+      selectedNumbers: payment.selectedNumbers || []
     };
 
-    console.log("📨 Sending email payload to Zeabur:", payload);
+    console.log("📨 Sending updated payload to Zeabur:", payload);
 
     const res = await axios.post(
       EMAIL_SERVICE_URL,
