@@ -2,7 +2,7 @@ import axios from "axios";
 
 const EMAIL_SERVICE_URL = "https://nicketonemail.zeabur.app/api/confirm-payment";
 
-const NICKET_SECRET_KEY = "savage2000savage2000";
+const INTERNAL_SECRET_KEY = "savage2000savage2000";
 
 export default async function sendEmail(payment) {
   try {
@@ -20,7 +20,7 @@ export default async function sendEmail(payment) {
       payload,
       {
         headers: {
-          "x-nicket-key": NICKET_SECRET_KEY,
+          "x-nicket-key": INTERNAL_SECRET_KEY,
           "Content-Type": "application/json"
         },
         timeout: 10000
