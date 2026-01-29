@@ -1,48 +1,29 @@
 import axios from "axios";
 
-const EMAIL_SERVICE_URL =
-  process.env.EMAIL_SERVICE_URL ||
-  "https://nicket-email-service.vercel.app/api/send-email";
+const EMAIL_SERVICE_URL = "https://nicketonemail.zeabur.app/api/confirm-payment";
 
-const BACKEND_SECRET = process.env.BACKEND_SECRET;
+const NICKET_SECRET_KEY = "savage2000savage2000";
 
 export default async function sendEmail(payment) {
   try {
-    if (!BACKEND_SECRET) {
-      console.error("❌ Missing BACKEND_SECRET env variable!");
-      return null;
-    }
-
-    const selectedNumbers = Array.isArray(payment.selectedNumbers)
-      ? payment.selectedNumbers
-      : payment.selectedNumbers
-        ? [payment.selectedNumbers]
-        : [];
-
     const payload = {
       name: payment.name || payment.fullName || "Nicket User",
       email: payment.email,
-      phone: payment.phone,
-      eventValue: payment.event || payment.eventValue,
-      selectedNumbers,
-      totalValue:
-        payment.totalValue ||
-        payment.amount ||
-        payment.amountPaid ||
-        0,
-      paymentReference: payment.paymentReference
+      amount: payment.totalValue || payment.amount || payment.amountPaid || 0,
+      transactionId: payment.paymentReference || "N/A"
     };
 
-    console.log("📨 Sending email payload to Vercel:", payload);
+    console.log("📨 Sending email payload to Zeabur:", payload);
 
     const res = await axios.post(
       EMAIL_SERVICE_URL,
       payload,
       {
         headers: {
-          Authorization: `Bearer ${BACKEND_SECRET}`,
+          "x-nicket-key": NICKET_SECRET_KEY,
           "Content-Type": "application/json"
-        }
+        },
+        timeout: 10000
       }
     );
 
