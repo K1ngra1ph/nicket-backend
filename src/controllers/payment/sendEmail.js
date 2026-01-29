@@ -1,7 +1,6 @@
 import axios from "axios";
 
 const EMAIL_SERVICE_URL = "https://nicketonemail.zeabur.app/api/confirm-payment";
-
 const INTERNAL_SECRET_KEY = "savage2000savage2000";
 
 export default async function sendEmail(payment) {
